@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Set;
 
 final class AppShortcutDiscovery {
+    private static final String HIDDEN_HOME_PACKAGE = "com.gathin.tvhome";
+
     private AppShortcutDiscovery() { }
 
     static Result discover(PackageManager packageManager, String ownPackage,
@@ -22,7 +24,8 @@ final class AppShortcutDiscovery {
             Intent launcherIntent = new Intent(Intent.ACTION_MAIN).addCategory(category);
             for (ResolveInfo activity : packageManager.queryIntentActivities(launcherIntent, 0)) {
                 String packageName = activity.activityInfo.packageName;
-                if (ownPackage.equals(packageName) || !packageNames.add(packageName)) continue;
+                if (ownPackage.equals(packageName) || HIDDEN_HOME_PACKAGE.equals(packageName)
+                        || !packageNames.add(packageName)) continue;
                 String label = activity.loadLabel(packageManager).toString().trim();
                 shortcuts.add(new AppShortcut(packageName, label, activity.loadIcon(packageManager)));
             }
