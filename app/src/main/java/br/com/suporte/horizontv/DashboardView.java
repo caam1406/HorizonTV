@@ -250,7 +250,7 @@ final class DashboardView extends View {
         float contentHeight = height - 28f;
         drawGlassCard(canvas, 13, top, 310, height, selected == 21);
         addHit(21, 13, top, 310, height);
-        backdrop.drawCropped(canvas, paint, 25, contentTop, 72, contentHeight);
+        drawPlayIcon(canvas, 61, contentTop + contentHeight / 2f);
         DashboardText.text(canvas, paint, "CONTINUAR", 107, contentTop + 12, 0xFFD7E0EE, 8, Typeface.BOLD);
         String appLabel = lastAppLabel == null ? "Nenhum app recente"
                 : DashboardText.ellipsis(paint, lastAppLabel, 200, 13);
@@ -275,6 +275,23 @@ final class DashboardView extends View {
         int rowCount = Math.min(5, Math.max(3, (int) ((height - 47f) / 37f)));
         float rowStep = (height - 48f) / rowCount;
         for (int i = 0; i < rowCount; i++) drawNewsRow(canvas, i, 951, contentTop + 34f + i * rowStep);
+    }
+
+    private void drawPlayIcon(Canvas canvas, float centerX, float centerY) {
+        paint.setColor(0xFF1D9FE8);
+        canvas.drawCircle(centerX, centerY, 27, paint);
+        paint.setColor(0xFF82D8FF);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2);
+        canvas.drawCircle(centerX, centerY, 30, paint);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(Color.WHITE);
+        imageClip.reset();
+        imageClip.moveTo(centerX - 6, centerY - 11);
+        imageClip.lineTo(centerX + 11, centerY);
+        imageClip.lineTo(centerX - 6, centerY + 11);
+        imageClip.close();
+        canvas.drawPath(imageClip, paint);
     }
 
     private void drawTrendingCard(Canvas canvas, int index, float x, float y, float width, float height) {
