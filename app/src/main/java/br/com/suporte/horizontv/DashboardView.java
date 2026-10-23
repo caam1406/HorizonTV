@@ -4,7 +4,6 @@ import android.content.Context;
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
@@ -44,6 +43,7 @@ final class DashboardView extends View {
     private final Rect imageSource = new Rect();
     private final Path imageClip = new Path();
     private final BackdropRenderer backdrop;
+    private final ContinueCardRenderer continueCard = new ContinueCardRenderer();
     private final DashboardNavigation navigation = new DashboardNavigation();
     private final AppShortcutDock appDock = new AppShortcutDock();
     private final Listener listener;
@@ -179,7 +179,7 @@ final class DashboardView extends View {
         if (event.getAction() != MotionEvent.ACTION_UP) return true;
         float x = event.getX() / (getWidth() / DESIGN_WIDTH);
         float y = event.getY() / (getHeight() / DESIGN_HEIGHT);
-        int hit = hitTarget(x, y);
+        int hit = DashboardHitTester.find(hitAreas, x, y, continueCard);
         if (hit >= 0) {
             selected = hit;
             invalidate();
@@ -288,19 +288,8 @@ final class DashboardView extends View {
         float height = bottom - top;
         float contentTop = top + 14f;
         float contentHeight = height - 28f;
-        drawGlassCard(canvas, 13, top, 310, height, selected == 21);
-        addHit(21, 13, top, 310, height);
-        drawPlayIcon(canvas, 61, contentTop + contentHeight / 2f);
-        DashboardText.text(canvas, paint, "CONTINUAR", 107, contentTop + 12, 0xFFD7E0EE, 8, Typeface.BOLD);
-        String appLabel = lastAppLabel == null ? "Nenhum app recente"
-                : DashboardText.ellipsis(paint, lastAppLabel, 200, 13);
-        DashboardText.text(canvas, paint, appLabel, 107, contentTop + 38, 0xFFFFFFFF, 13, Typeface.BOLD);
-        DashboardText.text(canvas, paint,
-                lastAppLabel == null ? "Abra um app pela dock" : "Último aplicativo aberto",
-                107, contentTop + 56, 0xFFC2CEDF, 9, Typeface.NORMAL);
-        DashboardText.text(canvas, paint,
-                lastAppLabel == null ? "" : "Pressione OK para voltar",
-                107, bottom - 18, 0xFFC2CEDF, 8, Typeface.NORMAL);
+        RectF continueHit = continueCard.draw(canvas, paint, top, bottom, lastAppLabel, selected == 21);
+        addHit(21, continueHit.left, continueHit.top, continueHit.width(), continueHit.height());
 
         drawGlassCard(canvas, 335, top, 587, height, false);
         DashboardText.text(canvas, paint, "EM ALTA AGORA  ›", 353, contentTop + 8, 0xFFEAF0F8, 9, Typeface.BOLD);
@@ -315,23 +304,6 @@ final class DashboardView extends View {
         int rowCount = Math.min(5, Math.max(3, (int) ((height - 47f) / 37f)));
         float rowStep = (height - 48f) / rowCount;
         for (int i = 0; i < rowCount; i++) drawNewsRow(canvas, i, 951, contentTop + 34f + i * rowStep);
-    }
-
-    private void drawPlayIcon(Canvas canvas, float centerX, float centerY) {
-        paint.setColor(0xFF1D9FE8);
-        canvas.drawCircle(centerX, centerY, 27, paint);
-        paint.setColor(0xFF82D8FF);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(2);
-        canvas.drawCircle(centerX, centerY, 30, paint);
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.WHITE);
-        imageClip.reset();
-        imageClip.moveTo(centerX - 6, centerY - 11);
-        imageClip.lineTo(centerX + 11, centerY);
-        imageClip.lineTo(centerX - 6, centerY + 11);
-        imageClip.close();
-        canvas.drawPath(imageClip, paint);
     }
 
     private void drawTrendingCard(Canvas canvas, int index, float x, float y, float width, float height) {
@@ -429,14 +401,6 @@ final class DashboardView extends View {
     private void addHit(int id, float x, float y, float width, float height) {
         while (hitAreas.size() <= id) hitAreas.add(null);
         hitAreas.set(id, new RectF(x, y, x + width, y + height));
-    }
-
-    private int hitTarget(float x, float y) {
-        for (int id = 0; id < hitAreas.size(); id++) {
-            RectF area = hitAreas.get(id);
-            if (area != null && area.contains(x, y)) return id;
-        }
-        return -1;
     }
 
     private void moveFocus(int keyCode) {
