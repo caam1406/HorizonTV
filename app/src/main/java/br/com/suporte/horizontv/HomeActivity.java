@@ -8,7 +8,6 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.location.Location;
 import android.location.LocationListener;
@@ -26,8 +25,6 @@ import android.widget.Toast;
 import org.json.JSONException;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,12 +48,13 @@ public final class HomeActivity extends Activity {
     private static final String KEY_NEIGHBORHOOD_TIME = "neighborhood_updated_at";
     private static final String KEY_NEIGHBORHOOD_CONSENT = "neighborhood_lookup_allowed";
     private static final String KEY_LOCATION_PROMPT_SKIPPED = "location_prompt_skipped";
-    private static final String KEY_LAST_APP_PACKAGE = "last_app_package";
-    private static final String KEY_LAST_APP_LABEL = "last_app_label";
+    static final String KEY_LAST_APP_PACKAGE = "last_app_package";
+    static final String KEY_LAST_APP_LABEL = "last_app_label";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final ExecutorService newsImages = Executors.newFixedThreadPool(2);
+    private final ExecutorService wallpaperNetwork = Executors.newSingleThreadExecutor();
     private final Set<String> requestedNewsImages = new HashSet<>();
     private long lastNewsRequest;
     private long lastWeatherRequest;
@@ -65,6 +63,7 @@ public final class HomeActivity extends Activity {
     private SharedPreferences preferences;
     private BibleVerseRepository bibleVerses;
     private WeatherSnapshot cachedWeather;
+    private DynamicWallpaperManager wallpapers;
 
     private final Runnable refreshClock = new Runnable() {
         @Override
@@ -87,9 +86,23 @@ public final class HomeActivity extends Activity {
             @Override public void launchPackage(String name) { HomeActivity.this.launchPackage(name); }
             @Override public void openNews(String url) { HomeActivity.this.openNews(url); }
             @Override public void showMessage(String message) { Toast.makeText(HomeActivity.this, message, Toast.LENGTH_SHORT).show(); }
+            @Override public void openBackgroundSettings() { WallpaperSettingsDialog.show(HomeActivity.this, wallpapers); }
             @Override public void refreshData() { refreshDataNow(); }
             @Override public void refreshBibleVerse() { HomeActivity.this.refreshBibleVerse(true); }
         });
+        wallpapers = new DynamicWallpaperManager(new DynamicWallpaperStore(this, preferences),
+                wallpaperNetwork, handler, new DynamicWallpaperManager.Listener() {
+            @Override public void onWallpaperChanged(Bitmap image, OpenverseImage metadata) {
+                if (!isFinishing() && !isDestroyed()) dashboard.setDynamicWallpaper(image, metadata);
+            }
+
+            @Override public void onStatusChanged(String message) {
+                if (message.startsWith("Não foi possível")) {
+                    Toast.makeText(HomeActivity.this, message, Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        wallpapers.restore();
         dashboard.setLastApp(preferences.getString(KEY_LAST_APP_PACKAGE, null),
                 preferences.getString(KEY_LAST_APP_LABEL, null));
         BibleVerse cachedVerse = bibleVerses.restore();
@@ -127,6 +140,7 @@ public final class HomeActivity extends Activity {
         handler.removeCallbacksAndMessages(null);
         network.shutdownNow();
         newsImages.shutdownNow();
+        wallpaperNetwork.shutdownNow();
         super.onDestroy();
     }
 
@@ -445,44 +459,12 @@ public final class HomeActivity extends Activity {
 
     private void refreshAppShortcuts() {
         network.execute(() -> {
-            PackageManager packageManager = getPackageManager();
-            Set<String> packageNames = new HashSet<>();
-            List<AppShortcut> shortcuts = new ArrayList<>();
-            for (String category : new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER}) {
-                Intent launcherIntent = new Intent(Intent.ACTION_MAIN).addCategory(category);
-                for (ResolveInfo activity : packageManager.queryIntentActivities(launcherIntent, 0)) {
-                    String packageName = activity.activityInfo.packageName;
-                    if (getPackageName().equals(packageName) || !packageNames.add(packageName)) continue;
-                    String label = activity.loadLabel(packageManager).toString().trim();
-                    shortcuts.add(new AppShortcut(packageName, label, activity.loadIcon(packageManager)));
-                }
-            }
-            Collections.sort(shortcuts, (left, right) -> left.label.compareToIgnoreCase(right.label));
-            String lastPackage = preferences.getString(KEY_LAST_APP_PACKAGE, null);
-            String lastLabel = preferences.getString(KEY_LAST_APP_LABEL, null);
-            if (lastPackage != null) {
-                AppShortcut lastShortcut = null;
-                for (AppShortcut shortcut : shortcuts) {
-                    if (lastPackage.equals(shortcut.packageName)) {
-                        lastShortcut = shortcut;
-                        break;
-                    }
-                }
-                if (lastShortcut == null) {
-                    preferences.edit().remove(KEY_LAST_APP_PACKAGE).remove(KEY_LAST_APP_LABEL).apply();
-                    lastPackage = null;
-                    lastLabel = null;
-                } else if (!lastShortcut.label.equals(lastLabel)) {
-                    lastLabel = lastShortcut.label;
-                    preferences.edit().putString(KEY_LAST_APP_LABEL, lastLabel).apply();
-                }
-            }
-            String recentPackage = lastPackage;
-            String recentLabel = lastLabel;
+            AppShortcutDiscovery.Result result = AppShortcutDiscovery.discover(
+                    getPackageManager(), getPackageName(), preferences);
             handler.post(() -> {
                 if (foreground && !isFinishing()) {
-                    dashboard.setAppShortcuts(shortcuts);
-                    dashboard.setLastApp(recentPackage, recentLabel);
+                    dashboard.setAppShortcuts(result.shortcuts);
+                    dashboard.setLastApp(result.lastPackage, result.lastLabel);
                 }
             });
         });

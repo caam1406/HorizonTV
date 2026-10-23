@@ -3,7 +3,6 @@ package br.com.suporte.horizontv;
 import android.content.Context;
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
@@ -30,6 +29,7 @@ final class DashboardView extends View {
         void launchPackage(String packageName);
         void openNews(String url);
         void showMessage(String message);
+        void openBackgroundSettings();
         void refreshData();
         void refreshBibleVerse();
     }
@@ -37,15 +37,14 @@ final class DashboardView extends View {
     private static final float DESIGN_WIDTH = 1280f;
     private static final float DESIGN_HEIGHT = 720f;
     private static final String[] NAVIGATION = {
-            "Início", "Filmes", "Séries", "TV ao vivo", "Música", "Jogos", "Apps"
+            "Início", "Filmes", "Séries", "TV ao vivo", "Música", "Jogos", "Apps", "Personalizar"
     };
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF rect = new RectF();
-    private final Rect sourceRect = new Rect();
     private final Rect imageSource = new Rect();
     private final Path imageClip = new Path();
-    private final Bitmap backdrop;
+    private final BackdropRenderer backdrop;
     private final AppShortcutDock appDock = new AppShortcutDock();
     private final Listener listener;
     private final ArrayList<RectF> hitAreas = new ArrayList<>();
@@ -61,6 +60,7 @@ final class DashboardView extends View {
     private String weatherMessage = "Localização necessária para a previsão";
     private String lastAppPackage;
     private String lastAppLabel;
+    private String wallpaperCredit;
     private int selected = 0;
     private int selectedNavigation = 0;
     private int tickerIndex;
@@ -72,7 +72,7 @@ final class DashboardView extends View {
         setFocusable(true);
         setFocusableInTouchMode(true);
         setContentDescription("Horizon TV, tela inicial");
-        backdrop = BitmapFactory.decodeResource(getResources(), br.com.suporte.horizontv.R.drawable.horizon_backdrop);
+        backdrop = new BackdropRenderer(context);
         setLayerType(View.LAYER_TYPE_HARDWARE, null);
     }
 
@@ -115,6 +115,12 @@ final class DashboardView extends View {
     void setBibleVerse(BibleVerse value, String message) {
         bibleVerse = value;
         bibleMessage = message == null ? "" : message;
+        invalidate();
+    }
+
+    void setDynamicWallpaper(Bitmap image, OpenverseImage metadata) {
+        backdrop.setDynamic(image);
+        wallpaperCredit = metadata == null ? null : metadata.shortCredit();
         invalidate();
     }
 
@@ -182,12 +188,8 @@ final class DashboardView extends View {
 
     private void drawBackdrop(Canvas canvas) {
         canvas.drawColor(0xFF060A17);
-        if (backdrop != null) {
-            sourceRect.set(0, 0, backdrop.getWidth(), backdrop.getHeight());
-            rect.set(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
-            paint.setAlpha(255);
-            canvas.drawBitmap(backdrop, sourceRect, rect, paint);
-        }
+        rect.set(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
+        backdrop.draw(canvas, paint, rect);
         paint.setShader(new LinearGradient(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT,
                 new int[]{0xE8060A17, 0xA4060A17, 0x60060A17, 0xD0060A17},
                 new float[]{0f, 0.42f, 0.76f, 1f}, Shader.TileMode.CLAMP));
@@ -202,10 +204,10 @@ final class DashboardView extends View {
     private void drawNavigation(Canvas canvas) {
         hitAreas.clear();
         DashboardGlyphs.drawSearch(canvas, paint, 85, 39);
-        float[] centers = {158, 222, 296, 375, 455, 520, 590};
+        float[] centers = {158, 222, 296, 375, 455, 520, 590, 685};
         for (int i = 0; i < NAVIGATION.length; i++) {
             int focusId = i;
-            float width = i == 3 ? 78 : (i == 0 ? 58 : 64);
+            float width = i == 3 ? 78 : (i == 7 ? 90 : (i == 0 ? 58 : 64));
             float x = centers[i] - width / 2f;
             float y = 34;
             boolean focused = selected == focusId;
@@ -281,7 +283,7 @@ final class DashboardView extends View {
         float contentHeight = height - 28f;
         drawGlassCard(canvas, 13, top, 310, height, selected == 21);
         addHit(21, 13, top, 310, height);
-        drawClippedBackdrop(canvas, 25, contentTop, 72, contentHeight);
+        backdrop.drawCropped(canvas, paint, 25, contentTop, 72, contentHeight);
         DashboardText.text(canvas, paint, "CONTINUAR", 107, contentTop + 12, 0xFFD7E0EE, 8, Typeface.BOLD);
         String appLabel = lastAppLabel == null ? "Nenhum app recente"
                 : DashboardText.ellipsis(paint, lastAppLabel, 200, 13);
@@ -314,7 +316,7 @@ final class DashboardView extends View {
         canvas.drawRoundRect(card, 9, 9, paint);
         Bitmap image = trendingImages[index];
         if (image == null) {
-            drawClippedBackdrop(canvas, x, y, width, height);
+            backdrop.drawCropped(canvas, paint, x, y, width, height);
         } else {
             drawHeadlineImage(canvas, image, card);
             paint.setColor(0x44050A14);
@@ -368,7 +370,9 @@ final class DashboardView extends View {
         Headline ticker = getHeadline(tickerIndex);
         String headline = ticker == null ? newsMessage : ticker.title;
         DashboardText.text(canvas, paint, DashboardText.ellipsis(paint, headline, 590, 8), 100, y + 22, 0xFFE1E7F0, 8, Typeface.NORMAL);
-        DashboardText.text(canvas, paint, "Clima: Open-Meteo  ·  Bairro: © OpenStreetMap contributors  ·  Notícias: G1 / Agência Brasil",
+        DashboardText.text(canvas, paint, wallpaperCredit == null
+                        ? "Clima: Open-Meteo  ·  Bairro: © OpenStreetMap contributors  ·  Notícias: G1 / Agência Brasil"
+                        : "Fundo: " + wallpaperCredit,
                 730, y + 22, 0xFF9BAAC0, 7, Typeface.NORMAL);
         long now = System.currentTimeMillis();
         if (now - lastTickerChange > 12000 && headlines.size() > 1) {
@@ -398,22 +402,6 @@ final class DashboardView extends View {
         paint.setStyle(Paint.Style.FILL);
     }
 
-    private void drawClippedBackdrop(Canvas canvas, float x, float y, float width, float height) {
-        if (backdrop == null) return;
-        int save = canvas.save();
-        rect.set(x, y, x + width, y + height);
-        canvas.clipRect(rect);
-        int sx = (int) (backdrop.getWidth() * 0.43f);
-        int sy = (int) (backdrop.getHeight() * 0.35f);
-        sourceRect.set(sx, sy, Math.min(backdrop.getWidth(), sx + backdrop.getWidth() / 3),
-                Math.min(backdrop.getHeight(), sy + backdrop.getHeight() / 2));
-        rect.set(x, y, x + width, y + height);
-        paint.setAlpha(145);
-        canvas.drawBitmap(backdrop, sourceRect, rect, paint);
-        paint.setAlpha(255);
-        canvas.restoreToCount(save);
-    }
-
     private void addHit(int id, float x, float y, float width, float height) {
         while (hitAreas.size() <= id) hitAreas.add(null);
         hitAreas.set(id, new RectF(x, y, x + width, y + height));
@@ -433,15 +421,15 @@ final class DashboardView extends View {
             else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 27;
             else if (selected >= 23 && selected <= 27) selected = selected == 23 ? 21 : selected - 1;
-            else if (selected >= 0 && selected <= 6) selected = selected == 0 ? 6 : selected - 1;
+            else if (selected >= 0 && selected < NAVIGATION.length) selected = selected == 0 ? NAVIGATION.length - 1 : selected - 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
             if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, 1);
             else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 23;
             else if (selected >= 23 && selected <= 27) selected = selected == 27 ? 21 : selected + 1;
-            else if (selected >= 0 && selected <= 6) selected = selected == 6 ? 0 : selected + 1;
+            else if (selected >= 0 && selected < NAVIGATION.length) selected = selected == NAVIGATION.length - 1 ? 0 : selected + 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (selected <= 6) selected = selected == 3 ? 10 : 8;
+            if (selected < NAVIGATION.length) selected = selected == 3 ? 10 : 8;
             else if (selected == 8 || selected == 9) selected = AppShortcutDock.SELECTION_BASE;
             else if (appDock.handlesSelection(selected)) selected = 21;
             else if (selected >= 21 && selected <= 27) selected = AppShortcutDock.SELECTION_BASE;
@@ -453,16 +441,17 @@ final class DashboardView extends View {
             else if (selected == 8 || selected == 9) selected = 0;
             else if (selected == 10 || selected == 11) selected = 3;
         }
-        if (selected >= 0 && selected <= 6) selectedNavigation = selected;
+        if (selected >= 0 && selected < NAVIGATION.length) selectedNavigation = selected;
         setContentDescription(descriptionForSelection());
         sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
         invalidate();
     }
 
     private void activateSelection() {
-        if (selected >= 0 && selected <= 6) {
+        if (selected >= 0 && selected < NAVIGATION.length) {
             selectedNavigation = selected;
-            if (selected == 3) listener.launchPackage("com.tcl.tv");
+            if (selected == 7) listener.openBackgroundSettings();
+            else if (selected == 3) listener.launchPackage("com.tcl.tv");
             else if (selected == 6) selected = AppShortcutDock.SELECTION_BASE;
             else listener.showMessage("Abra um aplicativo pela dock.");
         } else if (selected == 9) {
@@ -485,7 +474,7 @@ final class DashboardView extends View {
     }
 
     private String descriptionForSelection() {
-        if (selected >= 0 && selected <= 6) return NAVIGATION[selected];
+        if (selected >= 0 && selected < NAVIGATION.length) return NAVIGATION[selected];
         if (appDock.handlesSelection(selected)) return appDock.labelForSelection(selected);
         if (selected == 21 && lastAppLabel != null) return "Continuar " + lastAppLabel;
         if (selected >= 23 && selected <= 27) {
