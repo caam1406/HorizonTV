@@ -81,6 +81,7 @@ public final class HomeActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        preferences.edit().remove("selected_gmail_account").remove("gmail_notification_count").apply();
         bibleVerses = new BibleVerseRepository(preferences, network, handler);
         dashboard = new DashboardView(this, new DashboardView.Listener() {
             @Override public void launchPackage(String name) { HomeActivity.this.launchPackage(name); }
@@ -89,6 +90,9 @@ public final class HomeActivity extends Activity {
             @Override public void openBackgroundSettings() { WallpaperSettingsDialog.show(HomeActivity.this, wallpapers); }
             @Override public void refreshData() { refreshDataNow(); }
             @Override public void refreshBibleVerse() { HomeActivity.this.refreshBibleVerse(true); }
+            @Override public void openEmailClient() {
+                startActivity(new Intent(HomeActivity.this, EmailClientActivity.class));
+            }
         });
         wallpapers = new DynamicWallpaperManager(new DynamicWallpaperStore(this, preferences),
                 wallpaperNetwork, handler, new DynamicWallpaperManager.Listener() {

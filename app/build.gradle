@@ -28,9 +28,18 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    packagingOptions {
+        resources {
+            pickFirsts += ['META-INF/LICENSE.md', 'META-INF/NOTICE.md']
+        }
+    }
 }
 
 dependencies {
+    implementation 'org.eclipse.angus:jakarta.mail:2.0.5'
+    implementation 'org.eclipse.angus:angus-activation:2.0.3'
+    implementation 'jakarta.activation:jakarta.activation-api:2.1.4'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20260814'
 }

@@ -16,10 +16,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -32,25 +29,23 @@ final class DashboardView extends View {
         void openBackgroundSettings();
         void refreshData();
         void refreshBibleVerse();
+        void openEmailClient();
     }
 
     private static final float DESIGN_WIDTH = 1280f;
     private static final float DESIGN_HEIGHT = 720f;
     private static final int TRENDING_STORY_COUNT = 3;
-    private static final String[] NAVIGATION = {
-            "Início", "Filmes", "Séries", "TV ao vivo", "Música", "Jogos", "Apps", "Personalizar"
-    };
+    private static final int HERO_WATCH_SELECTION = 30;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF rect = new RectF();
     private final Rect imageSource = new Rect();
     private final Path imageClip = new Path();
     private final BackdropRenderer backdrop;
+    private final DashboardNavigation navigation = new DashboardNavigation();
     private final AppShortcutDock appDock = new AppShortcutDock();
     private final Listener listener;
     private final ArrayList<RectF> hitAreas = new ArrayList<>();
-    private final DateFormat timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault());
-    private final DateFormat dateFormat = new SimpleDateFormat("EEEE, d MMMM", new Locale("pt", "BR"));
     private List<Headline> headlines = new ArrayList<>();
     private final Bitmap[] trendingImages = new Bitmap[3];
     private WeatherSnapshot weather;
@@ -137,7 +132,8 @@ final class DashboardView extends View {
         int save = canvas.save();
         canvas.scale(scaleX, scaleY);
         drawBackdrop(canvas);
-        drawNavigation(canvas);
+        hitAreas.clear();
+        hitAreas.addAll(navigation.draw(canvas, paint, selected, selectedNavigation));
         drawHero(canvas);
         drawWeather(canvas);
         drawShortcuts(canvas);
@@ -202,45 +198,15 @@ final class DashboardView extends View {
         canvas.drawRect(0, 630, DESIGN_WIDTH, DESIGN_HEIGHT, paint);
     }
 
-    private void drawNavigation(Canvas canvas) {
-        hitAreas.clear();
-        DashboardGlyphs.drawSearch(canvas, paint, 85, 39);
-        float[] centers = {158, 222, 296, 375, 455, 520, 590, 685};
-        for (int i = 0; i < NAVIGATION.length; i++) {
-            int focusId = i;
-            float width = i == 3 ? 78 : (i == 7 ? 90 : (i == 0 ? 58 : 64));
-            float x = centers[i] - width / 2f;
-            float y = 34;
-            boolean focused = selected == focusId;
-            if (focused || selectedNavigation == i) {
-                paint.setColor(focused ? 0x5536BDF2 : 0x302E94D8);
-                rect.set(x - 8, y - 7, x + width + 8, y + 30);
-                canvas.drawRoundRect(rect, 18, 18, paint);
-                paint.setColor(0xFF73DDFC);
-                rect.set(x + 4, y + 27, x + width - 4, y + 29);
-                canvas.drawRoundRect(rect, 2, 2, paint);
-            }
-            DashboardText.text(canvas, paint, NAVIGATION[i], x, y + 16, focused ? 0xFFFFFFFF : 0xFFD4D9E5,
-                    12, focused ? Typeface.BOLD : Typeface.NORMAL);
-            hitAreas.add(new RectF(x - 10, 22, x + width + 10, 66));
-        }
-        DashboardGlyphs.drawTopIcon(canvas, paint, rect, 868, 46, 0);
-        DashboardGlyphs.drawTopIcon(canvas, paint, rect, 903, 46, 1);
-        DashboardGlyphs.drawAvatar(canvas, paint, rect, 939, 46);
-        DashboardText.text(canvas, paint, timeFormat.format(new Date()), 1046, 39, 0xFFFFFFFF, 16, Typeface.NORMAL);
-        DashboardText.text(canvas, paint, dateFormat.format(new Date()).toUpperCase(new Locale("pt", "BR")),
-                1046, 57, 0xFFCFD5E2, 9, Typeface.NORMAL);
-    }
-
     private void drawHero(Canvas canvas) {
         DashboardText.text(canvas, paint, "EM DESTAQUE", 116, 112, 0xFFB9C7DA, 11, Typeface.BOLD);
         DashboardText.letterSpaced(canvas, paint, "HORIZON", 116, 164, 0xFFFFFFFF, 38, 8f);
         DashboardText.letterSpaced(canvas, paint, "UM NOVO AMANHÃ", 119, 188, 0xFFF0F4FF, 8, 5f);
         DashboardText.text(canvas, paint, "Uma jornada extraordinária em um mundo", 118, 216, 0xFFE1E6EF, 12, Typeface.NORMAL);
         DashboardText.text(canvas, paint, "que acaba de ganhar um novo horizonte.", 118, 233, 0xFFE1E6EF, 12, Typeface.NORMAL);
-        drawButton(canvas, 116, 250, 94, 31, "▶  Assistir", selected == 8, true);
+        drawButton(canvas, 116, 250, 94, 31, "▶  Assistir", selected == HERO_WATCH_SELECTION, true);
         drawButton(canvas, 220, 250, 88, 31, "Mais info", selected == 9, false);
-        addHit(8, 116, 250, 94, 31);
+        addHit(HERO_WATCH_SELECTION, 116, 250, 94, 31);
         addHit(9, 220, 250, 88, 31);
     }
 
@@ -422,16 +388,16 @@ final class DashboardView extends View {
             else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 27;
             else if (selected >= 23 && selected <= 27) selected = selected == 23 ? 21 : selected - 1;
-            else if (selected >= 0 && selected < NAVIGATION.length) selected = selected == 0 ? NAVIGATION.length - 1 : selected - 1;
+            else if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) selected = selected == 0 ? DashboardNavigation.ITEM_COUNT - 1 : selected - 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
             if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, 1);
             else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 23;
             else if (selected >= 23 && selected <= 27) selected = selected == 27 ? 21 : selected + 1;
-            else if (selected >= 0 && selected < NAVIGATION.length) selected = selected == NAVIGATION.length - 1 ? 0 : selected + 1;
+            else if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) selected = selected == DashboardNavigation.ITEM_COUNT - 1 ? 0 : selected + 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (selected < NAVIGATION.length) selected = selected == 3 ? 10 : 8;
-            else if (selected == 8 || selected == 9) selected = AppShortcutDock.SELECTION_BASE;
+            if (selected < DashboardNavigation.ITEM_COUNT) selected = selected == 3 ? 10 : HERO_WATCH_SELECTION;
+            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = AppShortcutDock.SELECTION_BASE;
             else if (appDock.handlesSelection(selected)) selected = 21;
             else if (selected >= 21 && selected <= 27) selected = AppShortcutDock.SELECTION_BASE;
             else if (selected == 10 || selected == 11) selected = 23;
@@ -439,23 +405,24 @@ final class DashboardView extends View {
             if (appDock.handlesSelection(selected)) selected = 0;
             else if (selected == 21) selected = AppShortcutDock.SELECTION_BASE;
             else if (selected >= 23 && selected <= 27) selected = 18;
-            else if (selected == 8 || selected == 9) selected = 0;
+            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = 0;
             else if (selected == 10 || selected == 11) selected = 3;
         }
-        if (selected >= 0 && selected < NAVIGATION.length) selectedNavigation = selected;
+        if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) selectedNavigation = selected;
         setContentDescription(descriptionForSelection());
         sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
         invalidate();
     }
 
     private void activateSelection() {
-        if (selected >= 0 && selected < NAVIGATION.length) {
+        if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) {
             selectedNavigation = selected;
             if (selected == 7) listener.openBackgroundSettings();
+            else if (selected == 8) listener.openEmailClient();
             else if (selected == 3) listener.launchPackage("com.tcl.tv");
             else if (selected == 6) selected = AppShortcutDock.SELECTION_BASE;
             else listener.showMessage("Abra um aplicativo pela dock.");
-        } else if (selected == 9) {
+        } else if (selected == HERO_WATCH_SELECTION || selected == 9) {
             listener.showMessage("Horizon — TV, filmes e séries em um só lugar.");
         } else if (selected == 10) {
             listener.refreshData();
@@ -475,7 +442,9 @@ final class DashboardView extends View {
     }
 
     private String descriptionForSelection() {
-        if (selected >= 0 && selected < NAVIGATION.length) return NAVIGATION[selected];
+        if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) {
+            return navigation.labelFor(selected);
+        }
         if (appDock.handlesSelection(selected)) return appDock.labelForSelection(selected);
         if (selected == 21 && lastAppLabel != null) return "Continuar " + lastAppLabel;
         if (selected >= 23 && selected <= 27) {
