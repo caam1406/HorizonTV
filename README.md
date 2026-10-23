@@ -20,6 +20,7 @@ Os cartões e a dock são dimensionados pela largura e altura da tela; a faixa i
 
 - O app solicita somente localização aproximada (`ACCESS_COARSE_LOCATION`) e só a consulta enquanto a tela inicial está aberta. Não há rastreamento em segundo plano.
 - A dock mostra localmente os apps que oferecem uma atividade de inicialização na TV. A lista de apps não é enviada a serviços externos.
+- O card Continuar guarda localmente o nome e o pacote do último app aberto pelo Horizon e o abre novamente ao selecionar o card. O launcher não lê o histórico global de uso nem envia esse registro.
 - As coordenadas são arredondadas para duas casas decimais e guardadas nas preferências locais para reutilizar a previsão. São enviadas por HTTPS à Open-Meteo para o clima e ao OpenStreetMap Foundation (Nominatim) para identificar o bairro aproximado.
 - A consulta Nominatim é feita uma vez na configuração inicial e repetida somente após deslocamento aproximado de 2,5 km e no máximo uma vez por dia; o nome retornado fica em cache local. Se o mapa não tiver um bairro, a tela usa a cidade. O ponto mais próximo do mapa pode não corresponder exatamente à coordenada informada.
 - Na primeira consulta, uma confirmação explica o envio ao OpenStreetMap; a pessoa pode recusar e continuar usando o clima sem o nome do bairro. Para apagar o bairro salvo, limpe os dados do Horizon em Configurações do Android TV.
@@ -66,6 +67,7 @@ O usuário pode conceder ou negar localização na própria tela. Se a TV não t
 
 ## Análise de segurança (2026-10-23)
 
+- **Referência local do card Continuar** — nome e pacote são valores simples em preferências privadas do app; não há permissão de histórico de uso nem transmissão. Verificação: inspeção do armazenamento `MODE_PRIVATE`, manifesto e fluxo de abertura. Referência oficial consultada em 2026-10-23: [armazenamento de dados e preferências no Android](https://developer.android.com/training/data-storage).
 - **Visibilidade de apps instalados** — a dock consulta atividades de inicialização por meio de assinaturas declaradas em `<queries>` no manifesto; não usa `QUERY_ALL_PACKAGES` e não transmite a lista. Revisão estática de `AndroidManifest.xml` e do fluxo `queryIntentActivities`; build e lint concluídos. Referência oficial consultada em 2026-10-23: [Package visibility on Android](https://developer.android.com/training/package-visibility).
 - **XML externo / CWE-611** — feeds RSS são entrada não confiável; DTD, entidades externas e resolução de DTD são desativadas. Verificação: `NewsFeedReaderTest.rejectsExternalEntityDeclarations`; resultado esperado: parser rejeita o documento. Referência oficial: https://cwe.mitre.org/data/definitions/611 .
 - **Comunicação / ASVS 5.0.0** — apenas HTTPS, hosts de notícia permitidos e sem tráfego cleartext; feed limitado por tamanho e timeouts. Verificação: testes de URL HTTPS/host e configuração do Manifest. Referência: https://asvs.owasp.org/ (versão 5.0.0, estável em 2025-05-30).

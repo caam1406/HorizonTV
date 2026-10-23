@@ -50,6 +50,8 @@ public final class HomeActivity extends Activity {
     private static final String KEY_NEIGHBORHOOD_TIME = "neighborhood_updated_at";
     private static final String KEY_NEIGHBORHOOD_CONSENT = "neighborhood_lookup_allowed";
     private static final String KEY_LOCATION_PROMPT_SKIPPED = "location_prompt_skipped";
+    private static final String KEY_LAST_APP_PACKAGE = "last_app_package";
+    private static final String KEY_LAST_APP_LABEL = "last_app_label";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
@@ -82,6 +84,8 @@ public final class HomeActivity extends Activity {
             @Override public void showMessage(String message) { Toast.makeText(HomeActivity.this, message, Toast.LENGTH_SHORT).show(); }
             @Override public void refreshData() { refreshDataNow(); }
         });
+        dashboard.setLastApp(preferences.getString(KEY_LAST_APP_PACKAGE, null),
+                preferences.getString(KEY_LAST_APP_LABEL, null));
         setContentView(dashboard);
         List<Headline> cached = NewsCache.load(preferences);
         dashboard.setHeadlines(cached, cached.isEmpty() ? "Conectando às fontes de notícias…" : "Exibindo as últimas manchetes salvas");
@@ -362,14 +366,37 @@ public final class HomeActivity extends Activity {
                     .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         }
         if (launch == null) {
+            clearLastAppIfMatching(packageName);
             Toast.makeText(this, "O app ainda não está instalado.", Toast.LENGTH_SHORT).show();
             return;
         }
         try {
             startActivity(launch);
+            rememberLastApp(packageName);
         } catch (ActivityNotFoundException error) {
+            clearLastAppIfMatching(packageName);
             Toast.makeText(this, "Não foi possível abrir este app.", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void rememberLastApp(String packageName) {
+        String label = packageName;
+        try {
+            PackageManager packageManager = getPackageManager();
+            label = packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0))
+                    .toString().trim();
+        } catch (PackageManager.NameNotFoundException ignored) {
+            // Keep the package name as a fallback label when package metadata is unavailable.
+        }
+        preferences.edit().putString(KEY_LAST_APP_PACKAGE, packageName)
+                .putString(KEY_LAST_APP_LABEL, label).apply();
+        dashboard.setLastApp(packageName, label);
+    }
+
+    private void clearLastAppIfMatching(String packageName) {
+        if (!packageName.equals(preferences.getString(KEY_LAST_APP_PACKAGE, null))) return;
+        preferences.edit().remove(KEY_LAST_APP_PACKAGE).remove(KEY_LAST_APP_LABEL).apply();
+        dashboard.setLastApp(null, null);
     }
 
     private void refreshAppShortcuts() {
@@ -387,8 +414,32 @@ public final class HomeActivity extends Activity {
                 }
             }
             Collections.sort(shortcuts, (left, right) -> left.label.compareToIgnoreCase(right.label));
+            String lastPackage = preferences.getString(KEY_LAST_APP_PACKAGE, null);
+            String lastLabel = preferences.getString(KEY_LAST_APP_LABEL, null);
+            if (lastPackage != null) {
+                AppShortcut lastShortcut = null;
+                for (AppShortcut shortcut : shortcuts) {
+                    if (lastPackage.equals(shortcut.packageName)) {
+                        lastShortcut = shortcut;
+                        break;
+                    }
+                }
+                if (lastShortcut == null) {
+                    preferences.edit().remove(KEY_LAST_APP_PACKAGE).remove(KEY_LAST_APP_LABEL).apply();
+                    lastPackage = null;
+                    lastLabel = null;
+                } else if (!lastShortcut.label.equals(lastLabel)) {
+                    lastLabel = lastShortcut.label;
+                    preferences.edit().putString(KEY_LAST_APP_LABEL, lastLabel).apply();
+                }
+            }
+            String recentPackage = lastPackage;
+            String recentLabel = lastLabel;
             handler.post(() -> {
-                if (foreground && !isFinishing()) dashboard.setAppShortcuts(shortcuts);
+                if (foreground && !isFinishing()) {
+                    dashboard.setAppShortcuts(shortcuts);
+                    dashboard.setLastApp(recentPackage, recentLabel);
+                }
             });
         });
     }

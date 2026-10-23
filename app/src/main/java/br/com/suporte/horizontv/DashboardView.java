@@ -52,6 +52,8 @@ final class DashboardView extends View {
     private String weatherLocation = "Sua região";
     private String newsMessage = "Buscando manchetes recentes…";
     private String weatherMessage = "Localização necessária para a previsão";
+    private String lastAppPackage;
+    private String lastAppLabel;
     private int selected = 0;
     private int selectedNavigation = 0;
     private int tickerIndex;
@@ -75,6 +77,12 @@ final class DashboardView extends View {
 
     void setAppShortcuts(List<AppShortcut> value) {
         selected = appDock.update(value, selected);
+        invalidate();
+    }
+
+    void setLastApp(String packageName, String label) {
+        lastAppPackage = packageName;
+        lastAppLabel = label == null || label.isEmpty() ? null : label;
         invalidate();
     }
 
@@ -243,10 +251,15 @@ final class DashboardView extends View {
         addHit(21, 13, top, 310, height);
         drawClippedBackdrop(canvas, 25, contentTop, 72, contentHeight);
         DashboardText.text(canvas, paint, "CONTINUAR", 107, contentTop + 12, 0xFFD7E0EE, 8, Typeface.BOLD);
-        DashboardText.text(canvas, paint, "Sua próxima sessão", 107, contentTop + 38, 0xFFFFFFFF, 13, Typeface.BOLD);
-        DashboardText.text(canvas, paint, "TV, filmes e séries", 107, contentTop + 56, 0xFFC2CEDF, 9, Typeface.NORMAL);
-        float controlsTop = bottom - 68f;
-        DashboardText.drawProgress(canvas, paint, rect, 107, controlsTop, 200, 0.38f);
+        String appLabel = lastAppLabel == null ? "Nenhum app recente"
+                : DashboardText.ellipsis(paint, lastAppLabel, 200, 13);
+        DashboardText.text(canvas, paint, appLabel, 107, contentTop + 38, 0xFFFFFFFF, 13, Typeface.BOLD);
+        DashboardText.text(canvas, paint,
+                lastAppLabel == null ? "Abra um app pela dock" : "Último aplicativo aberto",
+                107, contentTop + 56, 0xFFC2CEDF, 9, Typeface.NORMAL);
+        DashboardText.text(canvas, paint,
+                lastAppLabel == null ? "" : "Pressione OK para voltar",
+                107, bottom - 18, 0xFFC2CEDF, 8, Typeface.NORMAL);
 
         drawGlassCard(canvas, 335, top, 587, height, false);
         DashboardText.text(canvas, paint, "EM ALTA AGORA  ›", 353, contentTop + 8, 0xFFEAF0F8, 9, Typeface.BOLD);
@@ -396,7 +409,8 @@ final class DashboardView extends View {
         } else if (selected == 10 || selected == 11) {
             listener.refreshData();
         } else if (selected == 21) {
-            listener.showMessage("Nada está sendo reproduzido agora.");
+            if (lastAppPackage == null) listener.showMessage("Abra um aplicativo pela dock para continuar.");
+            else listener.launchPackage(lastAppPackage);
         } else if (appDock.handlesSelection(selected)) {
             String packageName = appDock.packageForSelection(selected);
             if (packageName != null) listener.launchPackage(packageName);
@@ -410,6 +424,7 @@ final class DashboardView extends View {
     private String descriptionForSelection() {
         if (selected >= 0 && selected <= 6) return NAVIGATION[selected];
         if (appDock.handlesSelection(selected)) return appDock.labelForSelection(selected);
+        if (selected == 21 && lastAppLabel != null) return "Continuar " + lastAppLabel;
         if (selected >= 23 && selected <= 27) {
             Headline item = getHeadline(selected - 23);
             return item == null ? "Notícias" : item.title;
