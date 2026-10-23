@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -61,7 +62,8 @@ final class NewsFeedReader {
 
     static List<Headline> merge(List<List<Headline>> feeds) {
         List<Headline> merged = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
+        Set<String> seenArticles = new HashSet<>();
+        Set<String> seenTitles = new HashSet<>();
         int[] positions = new int[feeds.size()];
         while (merged.size() < MAX_HEADLINES) {
             boolean addedInRound = false;
@@ -69,7 +71,8 @@ final class NewsFeedReader {
                 List<Headline> feed = feeds.get(feedIndex);
                 while (positions[feedIndex] < feed.size()) {
                     Headline item = feed.get(positions[feedIndex]++);
-                    if (!seen.add(item.title.toLowerCase(Locale.ROOT))) continue;
+                    if (!seenArticles.add(articleIdentity(item.url))
+                            || !seenTitles.add(titleIdentity(item.title))) continue;
                     merged.add(item);
                     addedInRound = true;
                     break;
@@ -79,6 +82,22 @@ final class NewsFeedReader {
             if (!addedInRound) break;
         }
         return Collections.unmodifiableList(merged);
+    }
+
+    private static String articleIdentity(String value) {
+        try {
+            URL url = new URL(value);
+            String path = url.getPath().replaceAll("/+$", "").toLowerCase(Locale.ROOT);
+            return url.getHost().toLowerCase(Locale.ROOT) + path;
+        } catch (Exception ignored) {
+            return value.toLowerCase(Locale.ROOT);
+        }
+    }
+
+    private static String titleIdentity(String value) {
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
+        return normalized.replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
     }
 
     static List<Headline> parse(InputStream stream, String source) throws IOException, SAXException {

@@ -36,6 +36,7 @@ final class DashboardView extends View {
 
     private static final float DESIGN_WIDTH = 1280f;
     private static final float DESIGN_HEIGHT = 720f;
+    private static final int TRENDING_STORY_COUNT = 3;
     private static final String[] NAVIGATION = {
             "Início", "Filmes", "Séries", "TV ao vivo", "Música", "Jogos", "Apps", "Personalizar"
     };
@@ -352,7 +353,7 @@ final class DashboardView extends View {
     }
 
     private void drawNewsRow(Canvas canvas, int index, float x, float y) {
-        Headline item = getHeadline(index);
+        Headline item = getNewsRowHeadline(index);
         String title = item == null ? (index == 0 ? newsMessage : "Aguardando novas manchetes…") : item.title;
         String source = item == null ? "" : item.source.toUpperCase(new Locale("pt", "BR"));
         DashboardText.text(canvas, paint, DashboardText.ellipsis(paint, title, 298, 9), x, y, 0xFFF1F4F9, 9, Typeface.NORMAL);
@@ -467,7 +468,7 @@ final class DashboardView extends View {
             String packageName = appDock.packageForSelection(selected);
             if (packageName != null) listener.launchPackage(packageName);
         } else if (selected >= 23 && selected <= 27) {
-            Headline item = getHeadline(selected - 23);
+            Headline item = getNewsRowHeadline(selected - 23);
             if (item != null) listener.openNews(item.url);
         }
         invalidate();
@@ -478,7 +479,7 @@ final class DashboardView extends View {
         if (appDock.handlesSelection(selected)) return appDock.labelForSelection(selected);
         if (selected == 21 && lastAppLabel != null) return "Continuar " + lastAppLabel;
         if (selected >= 23 && selected <= 27) {
-            Headline item = getHeadline(selected - 23);
+            Headline item = getNewsRowHeadline(selected - 23);
             return item == null ? "Notícias" : item.title;
         }
         if (selected == 10) return "Clima da sua região";
@@ -488,5 +489,9 @@ final class DashboardView extends View {
 
     private Headline getHeadline(int index) {
         return index >= 0 && index < headlines.size() ? headlines.get(index) : null;
+    }
+
+    private Headline getNewsRowHeadline(int index) {
+        return getHeadline(index + TRENDING_STORY_COUNT);
     }
 }

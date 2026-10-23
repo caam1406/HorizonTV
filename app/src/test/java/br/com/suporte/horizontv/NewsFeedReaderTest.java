@@ -91,6 +91,24 @@ public class NewsFeedReaderTest {
         assertEquals("Notícia do G1", merged.get(2).title);
     }
 
+    @Test
+    public void keepsTheLastTrendingCardDistinctAcrossSyndicatedStories() {
+        List<Headline> g1 = Arrays.asList(
+                new Headline("Título da notícia", "", "G1", "https://g1.globo.com/noticia?utm_source=rss"),
+                new Headline("Uma notícia diferente", "", "G1", "https://g1.globo.com/outra"));
+        List<Headline> agencyBrazil = Arrays.asList(
+                new Headline("Título da notícia!", "", "Agência Brasil", "https://g1.globo.com/noticia/"),
+                new Headline("Uma notícia diferente", "", "Agência Brasil", "https://agenciabrasil.ebc.com.br/outra"),
+                new Headline("Terceira notícia", "", "Agência Brasil", "https://agenciabrasil.ebc.com.br/terceira"));
+
+        List<Headline> merged = NewsFeedReader.merge(Arrays.asList(g1, agencyBrazil));
+
+        assertEquals(3, merged.size());
+        assertEquals("Título da notícia", merged.get(0).title);
+        assertEquals("Uma notícia diferente", merged.get(1).title);
+        assertEquals("Terceira notícia", merged.get(2).title);
+    }
+
     private static ByteArrayInputStream stream(String value) {
         return new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8));
     }
