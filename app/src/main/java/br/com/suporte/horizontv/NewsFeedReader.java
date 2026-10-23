@@ -21,12 +21,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.SAXParserFactory;
 
 final class NewsFeedReader {
     private static final int MAX_FEED_BYTES = 512 * 1024;
     private static final int MAX_HEADLINES = 20;
+    private static final Pattern HTML_IMAGE = Pattern.compile(
+            "(?is)<img\\b[^>]*\\bsrc\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))");
     private static final Feed[] FEEDS = {
             new Feed("G1", "https://g1.globo.com/rss/g1/"),
             new Feed("Agência Brasil", "https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml")
@@ -106,6 +110,7 @@ final class NewsFeedReader {
             String title = "";
             String summary = "";
             String link = "";
+            String imageUrl = "";
             String currentField = "";
             StringBuilder text = new StringBuilder();
             boolean inItem = false;
@@ -118,12 +123,21 @@ final class NewsFeedReader {
                         title = "";
                         summary = "";
                         link = "";
+                        imageUrl = "";
                         currentField = "";
                     } else if (inItem && tag.equals("link")) {
                         String href = parser.getAttributeValue(null, "href");
                         if (href != null) link = href;
                         else currentField = tag;
                         text.setLength(0);
+                    } else if (inItem && (tag.equals("imagem-destaque") || tag.equals("thumbnail"))) {
+                        currentField = tag;
+                        text.setLength(0);
+                    } else if (inItem && (tag.equals("content") || tag.equals("enclosure"))) {
+                        String candidate = parser.getAttributeValue(null, "url");
+                        if (candidate == null) candidate = parser.getAttributeValue(
+                                "http://search.yahoo.com/mrss/", "url");
+                        if (imageUrl.isEmpty() && isAllowedImageUrl(candidate)) imageUrl = candidate;
                     } else if (inItem && (tag.equals("title") || tag.equals("description")
                             || tag.equals("summary"))) {
                         currentField = tag;
@@ -141,12 +155,15 @@ final class NewsFeedReader {
                         if (tag.equals("title") && title.isEmpty()) title = value;
                         if ((tag.equals("description") || tag.equals("summary")) && summary.isEmpty()) summary = value;
                         if (tag.equals("link") && link.isEmpty()) link = value;
+                        if ((tag.equals("imagem-destaque") || tag.equals("thumbnail") || tag.equals("image"))
+                                && imageUrl.isEmpty()) imageUrl = safeImageUrl(value);
+                        if (tag.equals("description") && imageUrl.isEmpty()) imageUrl = extractImageUrl(text.toString());
                         currentField = "";
                     }
                     if (tag.equals("item") || tag.equals("entry")) {
                         String safeTitle = truncate(title, 180);
                         if (!safeTitle.isEmpty() && isAllowedArticleUrl(link)) {
-                            items.add(new Headline(safeTitle, truncate(summary, 220), source, link));
+                            items.add(new Headline(safeTitle, truncate(summary, 220), source, link, imageUrl));
                         }
                         inItem = false;
                     }
@@ -186,6 +203,33 @@ final class NewsFeedReader {
         }
     }
 
+    static boolean isAllowedImageUrl(String value) {
+        try {
+            URL url = new URL(value);
+            String host = url.getHost().toLowerCase(Locale.ROOT);
+            return "https".equalsIgnoreCase(url.getProtocol())
+                    && url.getUserInfo() == null
+                    && (host.endsWith(".glbimg.com")
+                    || host.equals("imagens.ebc.com.br")
+                    || host.equals("agenciabrasil.ebc.com.br"));
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static String extractImageUrl(String html) {
+        Matcher matcher = HTML_IMAGE.matcher(html);
+        if (!matcher.find()) return "";
+        String candidate = matcher.group(1) != null ? matcher.group(1)
+                : matcher.group(2) != null ? matcher.group(2) : matcher.group(3);
+        return safeImageUrl(candidate == null ? "" : candidate.replace("&amp;", "&").trim());
+    }
+
+    private static String safeImageUrl(String value) {
+        String candidate = value == null ? "" : value.trim();
+        return isAllowedImageUrl(candidate) ? candidate : "";
+    }
+
     private static List<Headline> fetchFeed(Feed feed) throws IOException, SAXException {
         HttpURLConnection connection = (HttpURLConnection) new URL(feed.url).openConnection();
         connection.setConnectTimeout(6000);
@@ -222,6 +266,7 @@ final class NewsFeedReader {
         String title;
         String summary;
         String link;
+        String imageUrl;
         String currentField = "";
         StringBuilder text = new StringBuilder();
         boolean inItem;
@@ -238,8 +283,16 @@ final class NewsFeedReader {
                 title = "";
                 summary = "";
                 link = "";
+                imageUrl = "";
                 currentField = "";
                 text.setLength(0);
+            } else if (inItem && (tag.equals("imagem-destaque") || tag.equals("thumbnail"))) {
+                currentField = tag;
+                text.setLength(0);
+            } else if (inItem && (tag.equals("content") || tag.equals("enclosure"))) {
+                String candidate = attributes.getValue("url");
+                if (candidate == null) candidate = attributes.getValue("http://search.yahoo.com/mrss/", "url");
+                if (imageUrl.isEmpty() && isAllowedImageUrl(candidate)) imageUrl = candidate;
             } else if (inItem && tag.equals("link")) {
                 String href = attributes.getValue("href");
                 if (href != null) link = href;
@@ -269,6 +322,11 @@ final class NewsFeedReader {
                     if (tag.equals("title") && title.isEmpty()) title = value;
                     if ((tag.equals("description") || tag.equals("summary")) && summary.isEmpty()) summary = value;
                     if (tag.equals("link") && link.isEmpty()) link = value;
+                    if ((tag.equals("imagem-destaque") || tag.equals("thumbnail") || tag.equals("image"))
+                            && imageUrl.isEmpty()) imageUrl = safeImageUrl(value);
+                    if (tag.equals("description") && imageUrl.isEmpty()) {
+                        imageUrl = extractImageUrl(text.toString());
+                    }
                     currentField = "";
                 }
                 if (tag.equals("item") || tag.equals("entry")) finishItem();
@@ -278,7 +336,7 @@ final class NewsFeedReader {
         private void finishItem() {
             String safeTitle = truncate(title, 180);
             if (!safeTitle.isEmpty() && isAllowedArticleUrl(link)) {
-                items.add(new Headline(safeTitle, truncate(summary, 220), source, link));
+                items.add(new Headline(safeTitle, truncate(summary, 220), source, link, imageUrl));
             }
             inItem = false;
         }

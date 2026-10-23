@@ -8,6 +8,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -41,6 +42,8 @@ final class DashboardView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF rect = new RectF();
     private final Rect sourceRect = new Rect();
+    private final Rect imageSource = new Rect();
+    private final Path imageClip = new Path();
     private final Bitmap backdrop;
     private final AppShortcutDock appDock = new AppShortcutDock();
     private final Listener listener;
@@ -48,6 +51,7 @@ final class DashboardView extends View {
     private final DateFormat timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault());
     private final DateFormat dateFormat = new SimpleDateFormat("EEEE, d MMMM", new Locale("pt", "BR"));
     private List<Headline> headlines = new ArrayList<>();
+    private final Bitmap[] trendingImages = new Bitmap[3];
     private WeatherSnapshot weather;
     private String weatherLocation = "Sua região";
     private String newsMessage = "Buscando manchetes recentes…";
@@ -71,8 +75,20 @@ final class DashboardView extends View {
 
     void setHeadlines(List<Headline> value, String message) {
         headlines = new ArrayList<>(value);
+        for (int index = 0; index < trendingImages.length; index++) trendingImages[index] = null;
         newsMessage = message;
         invalidate();
+    }
+
+    void setHeadlineImage(String articleUrl, Bitmap image) {
+        for (int index = 0; index < trendingImages.length; index++) {
+            Headline headline = getHeadline(index);
+            if (headline != null && headline.url.equals(articleUrl)) {
+                trendingImages[index] = image;
+                invalidate();
+                return;
+            }
+        }
     }
 
     void setAppShortcuts(List<AppShortcut> value) {
@@ -280,7 +296,14 @@ final class DashboardView extends View {
         RectF card = new RectF(x, y, x + width, y + height);
         paint.setColor(new int[]{0xFF182D50, 0xFF30223F, 0xFF1D3240}[index]);
         canvas.drawRoundRect(card, 9, 9, paint);
-        drawClippedBackdrop(canvas, x, y, width, height);
+        Bitmap image = trendingImages[index];
+        if (image == null) {
+            drawClippedBackdrop(canvas, x, y, width, height);
+        } else {
+            drawHeadlineImage(canvas, image, card);
+            paint.setColor(0x44050A14);
+            canvas.drawRoundRect(card, 9, 9, paint);
+        }
         paint.setColor(0x99050A14);
         rect.set(x, y + height - 39, x + width, y + height);
         canvas.drawRoundRect(rect, 0, 0, paint);
@@ -288,6 +311,26 @@ final class DashboardView extends View {
         String title = item == null ? new String[]{"Descubra novas histórias", "O que acontece agora", "Ideias para hoje"}[index] : item.title;
         DashboardText.drawWrapped(canvas, paint, title, x + 8, y + height - 23, width - 16, 10, 2, 0xFFFFFFFF, Typeface.BOLD);
         addHit(23 + index, x, y, width, height);
+    }
+
+    private void drawHeadlineImage(Canvas canvas, Bitmap image, RectF card) {
+        float cardRatio = card.width() / card.height();
+        float imageRatio = (float) image.getWidth() / image.getHeight();
+        if (imageRatio > cardRatio) {
+            int sourceWidth = Math.round(image.getHeight() * cardRatio);
+            int left = (image.getWidth() - sourceWidth) / 2;
+            imageSource.set(left, 0, left + sourceWidth, image.getHeight());
+        } else {
+            int sourceHeight = Math.round(image.getWidth() / cardRatio);
+            int top = (image.getHeight() - sourceHeight) / 2;
+            imageSource.set(0, top, image.getWidth(), top + sourceHeight);
+        }
+        imageClip.reset();
+        imageClip.addRoundRect(card, 9, 9, Path.Direction.CW);
+        int save = canvas.save();
+        canvas.clipPath(imageClip);
+        canvas.drawBitmap(image, imageSource, card, paint);
+        canvas.restoreToCount(save);
     }
 
     private void drawNewsRow(Canvas canvas, int index, float x, float y) {

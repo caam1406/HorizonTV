@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -55,6 +56,8 @@ public final class HomeActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
+    private final ExecutorService newsImages = Executors.newFixedThreadPool(2);
+    private final Set<String> requestedNewsImages = new HashSet<>();
     private long lastNewsRequest;
     private long lastWeatherRequest;
     private boolean foreground;
@@ -89,6 +92,7 @@ public final class HomeActivity extends Activity {
         setContentView(dashboard);
         List<Headline> cached = NewsCache.load(preferences);
         dashboard.setHeadlines(cached, cached.isEmpty() ? "Conectando às fontes de notícias…" : "Exibindo as últimas manchetes salvas");
+        loadHeadlineImages(cached);
         restoreWeather();
         applyImmersiveMode();
     }
@@ -116,6 +120,7 @@ public final class HomeActivity extends Activity {
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
         network.shutdownNow();
+        newsImages.shutdownNow();
         super.onDestroy();
     }
 
@@ -154,8 +159,11 @@ public final class HomeActivity extends Activity {
                     if (!result.isEmpty()) {
                         NewsCache.save(preferences, result);
                         dashboard.setHeadlines(result, "Manchetes atualizadas agora");
+                        loadHeadlineImages(result);
                     } else {
-                        dashboard.setHeadlines(NewsCache.load(preferences), "Nenhuma manchete disponível");
+                        List<Headline> cached = NewsCache.load(preferences);
+                        dashboard.setHeadlines(cached, "Nenhuma manchete disponível");
+                        loadHeadlineImages(cached);
                     }
                 });
             } catch (IOException | org.xml.sax.SAXException error) {
@@ -166,9 +174,29 @@ public final class HomeActivity extends Activity {
                     List<Headline> cached = NewsCache.load(preferences);
                     dashboard.setHeadlines(cached, cached.isEmpty()
                             ? "Sem conexão com as fontes de notícias" : "Sem conexão · mostrando últimas manchetes salvas");
+                    loadHeadlineImages(cached);
                 });
             }
         });
+    }
+
+    private void loadHeadlineImages(List<Headline> headlines) {
+        requestedNewsImages.clear();
+        for (int index = 0; index < Math.min(3, headlines.size()); index++) {
+            Headline headline = headlines.get(index);
+            if (headline.imageUrl.isEmpty() || !requestedNewsImages.add(headline.imageUrl)) continue;
+            newsImages.execute(() -> {
+                try {
+                    Bitmap image = NewsImageLoader.fetch(headline.imageUrl);
+                    if (image == null) return;
+                    handler.post(() -> {
+                        if (!isFinishing() && !isDestroyed()) dashboard.setHeadlineImage(headline.url, image);
+                    });
+                } catch (IOException error) {
+                    Log.w("HorizonTV", "News image load failed: " + error.getClass().getSimpleName());
+                }
+            });
+        }
     }
 
     private void explainLocationPermission(boolean force) {

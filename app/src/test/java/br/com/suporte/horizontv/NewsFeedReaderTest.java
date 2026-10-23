@@ -29,11 +29,36 @@ public class NewsFeedReaderTest {
     }
 
     @Test
+    public void parsesStoryImagesFromG1AndAgencyBrazilFeeds() throws Exception {
+        String g1Xml = "<rss><channel><item><title>G1</title>"
+                + "<description><![CDATA[<img src=\"https://s2-g1.glbimg.com/news/photo.jpg\" /> Texto]]></description>"
+                + "<link>https://g1.globo.com/noticia</link></item></channel></rss>";
+        String agencyXml = "<rss><channel><item><title>Agência</title>"
+                + "<imagem-destaque>https://imagens.ebc.com.br/noticia/photo.jpg</imagem-destaque>"
+                + "<link>https://agenciabrasil.ebc.com.br/noticia</link></item></channel></rss>";
+
+        Headline g1 = NewsFeedReader.parse(stream(g1Xml), "G1").get(0);
+        Headline agency = NewsFeedReader.parse(stream(agencyXml), "Agência Brasil").get(0);
+
+        assertEquals("https://s2-g1.glbimg.com/news/photo.jpg", g1.imageUrl);
+        assertEquals("https://imagens.ebc.com.br/noticia/photo.jpg", agency.imageUrl);
+    }
+
+    @Test
     public void rejectsUnsafeArticleUrls() {
         assertFalse(NewsFeedReader.isAllowedArticleUrl("http://g1.globo.com/news"));
         assertFalse(NewsFeedReader.isAllowedArticleUrl("https://example.com/news"));
         assertFalse(NewsFeedReader.isAllowedArticleUrl("javascript:alert(1)"));
         assertTrue(NewsFeedReader.isAllowedArticleUrl("https://g1.globo.com/news"));
+    }
+
+    @Test
+    public void onlyAllowsImageHostsUsedByConfiguredNewsSources() {
+        assertTrue(NewsFeedReader.isAllowedImageUrl("https://s2-g1.glbimg.com/photo.jpg"));
+        assertTrue(NewsFeedReader.isAllowedImageUrl("https://imagens.ebc.com.br/photo.jpg"));
+        assertFalse(NewsFeedReader.isAllowedImageUrl("http://s2-g1.glbimg.com/photo.jpg"));
+        assertFalse(NewsFeedReader.isAllowedImageUrl("https://glbimg.com.evil.example/photo.jpg"));
+        assertFalse(NewsFeedReader.isAllowedImageUrl("https://127.0.0.1/photo.jpg"));
     }
 
     @Test

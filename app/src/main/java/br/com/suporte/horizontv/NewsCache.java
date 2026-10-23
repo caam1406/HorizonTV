@@ -23,8 +23,10 @@ final class NewsCache {
                 String url = item.optString("url", "");
                 String title = item.optString("title", "").trim();
                 if (title.isEmpty() || !NewsFeedReader.isAllowedArticleUrl(url)) continue;
+                String imageUrl = item.optString("imageUrl", "");
+                if (!NewsFeedReader.isAllowedImageUrl(imageUrl)) imageUrl = "";
                 headlines.add(new Headline(title, item.optString("summary", ""),
-                        item.optString("source", "Notícias"), url));
+                        item.optString("source", "Notícias"), url, imageUrl));
             }
         } catch (Exception ignored) {
             return headlines;
@@ -43,6 +45,7 @@ final class NewsCache {
                 item.put("summary", headline.summary);
                 item.put("source", headline.source);
                 item.put("url", headline.url);
+                if (NewsFeedReader.isAllowedImageUrl(headline.imageUrl)) item.put("imageUrl", headline.imageUrl);
                 items.put(item);
             } catch (Exception ignored) {
                 // A malformed item is skipped; the rest of the feed remains useful.
