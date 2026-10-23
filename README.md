@@ -26,6 +26,7 @@ Os cartões e a dock são dimensionados pela largura e altura da tela; a faixa i
 - A consulta Nominatim é feita uma vez na configuração inicial e repetida somente após deslocamento aproximado de 2,5 km e no máximo uma vez por dia; o nome retornado fica em cache local. Se o mapa não tiver um bairro, a tela usa a cidade. O ponto mais próximo do mapa pode não corresponder exatamente à coordenada informada.
 - Na primeira consulta, uma confirmação explica o envio ao OpenStreetMap; a pessoa pode recusar e continuar usando o clima sem o nome do bairro. Para apagar o bairro salvo, limpe os dados do Horizon em Configurações do Android TV.
 - O clima usa condições atuais da Open-Meteo, com atualização a cada 30 minutos. A tela mostra a fonte. Consulte [documentação](https://open-meteo.com/en/docs) e [termos](https://open-meteo.com/en/terms); o serviço gratuito é destinado a usos não comerciais e requer atribuição.
+- O cartão que antes repetia o relógio agora mostra um versículo aleatório diário em português, na tradução João Ferreira de Almeida, fornecido pela [bible-api.com](https://bible-api.com/). O texto e a referência ficam no cache privado da TV; a consulta ocorre uma vez ao dia e também pode ser solicitada ao selecionar o cartão. O serviço informa que a tradução está em domínio público, limita o uso a 15 requisições por IP a cada 30 segundos e não garante disponibilidade; sem rede, o último versículo continua visível.
 - O nome do bairro vem de uma consulta reversa Nominatim, com agente `HorizonTV/1.0`, atribuição `© OpenStreetMap contributors` na tela e cache para evitar consultas periódicas. Aplicam-se a [documentação da API](https://nominatim.org/release-docs/latest/api/Reverse/) e a [política de uso](https://operations.osmfoundation.org/policies/nominatim/).
 - Notícias são manchetes gerais do Brasil, obtidas por RSS do [G1](https://g1.globo.com/rss/g1/) e da [Agência Brasil](https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml). A tela atualiza a cada 15 minutos, identifica a fonte e abre os artigos apenas por HTTPS nos domínios dessas fontes.
 - Conteúdo RSS é externo e tratado como dado: o parser limita a resposta a 512 KiB, bloqueia DTD/entidades externas, e os links são validados por protocolo e host. As preferências que incluem coordenadas ficam excluídas do backup e da transferência do Android.
@@ -71,6 +72,13 @@ $env:TV_HOST = '<ip-da-tv>:5555'
 .\scripts\smoke-news-images-tv.ps1
 ```
 
+Para validar o cartão de versículo pela navegação do controle remoto, rode o cenário dedicado. Ele abre o Horizon pelo botão HOME, navega até o cartão, confirma o foco acessível e salva uma captura para conferir o texto, a referência e o relógio da barra:
+
+```powershell
+$env:TV_HOST = '<ip-da-tv>:5555'
+.\scripts\smoke-bible-verse-tv.ps1
+```
+
 O usuário pode conceder ou negar localização na própria tela. Se a TV não tiver um provedor de localização de rede habilitado, o painel continua funcionando e mostra o estado do clima; nenhuma localização é inferida a partir do IP. Para abrir artigos é necessário ter um navegador instalado.
 
 ## Análise de segurança (2026-10-23)
@@ -82,6 +90,7 @@ O usuário pode conceder ou negar localização na própria tela. Se a TV não t
 - **Comunicação / ASVS 5.0.0** — apenas HTTPS, hosts de notícia permitidos e sem tráfego cleartext; feed limitado por tamanho e timeouts. Verificação: testes de URL HTTPS/host e configuração do Manifest. Referência: https://asvs.owasp.org/ (versão 5.0.0, estável em 2025-05-30).
 - **Localização e menor privilégio** — apenas localização aproximada em primeiro plano; coordenadas arredondadas e sem backup. O cache evita consultas repetidas ao Nominatim. Verificação: inspeção de `AndroidManifest.xml`, fluxo de permissão e regras de extração. Referências: https://developer.android.com/develop/sensors-and-location/location/permissions e https://operations.osmfoundation.org/policies/nominatim/ .
 - **Exposição de localização — severidade média, consentida** — o Nominatim recebe coordenadas aproximadas para nomear o bairro; aviso de consentimento, arredondamento, cache local e consulta limitada reduzem exposição. Resultado consultado via HTTPS; validação manual do ponto de exemplo confirmou resposta de bairro. Fontes oficiais consultadas em 2026-10-23: https://nominatim.org/release-docs/latest/api/Reverse/ e https://operations.osmfoundation.org/policies/nominatim/ .
+- **Resposta da API bíblica / CWE-1287 — severidade baixa** — conteúdo externo malformado poderia mostrar referência incorreta ou exceder o consumo esperado. O parser exige os campos JSON esperados, texto e coordenadas válidos, recusa redirecionamentos, limita o corpo a 32 KiB e os textos a 4.000 caracteres antes do cache privado. Verificação: `BibleVerseClientTest` cobre parsing, campos ausentes, texto vazio e coordenadas inválidas; o smoke na TCL conferiu a navegação e a exibição de conteúdo real. Nenhum dado pessoal é enviado. Limitação: disponibilidade e conteúdo dependem do serviço comunitário bible-api.com. Referências consultadas em 2026-10-23: [documentação e termos da API](https://bible-api.com/) e [MITRE CWE-1287, versão 4.20](https://cwe.mitre.org/data/definitions/1287).
 - **Dependências** — não há dependências externas de runtime. Consulta à API OSV em 2026-10-23 retornou 0 avisos para JUnit 4.13.2 e `org.json:json` 20260814, usados somente em testes; plugins Gradle/Android SDK são dependências de build, não incluídas no APK.
 - **Risco residual** — disponibilidade e conteúdo dos feeds/API dependem dos provedores e da rede da TV. A fonte dos dados, não o app, define a exatidão meteorológica. Não foi feita auditoria independente dos provedores nem varredura de rede externa.
 

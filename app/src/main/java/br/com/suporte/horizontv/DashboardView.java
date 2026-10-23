@@ -31,6 +31,7 @@ final class DashboardView extends View {
         void openNews(String url);
         void showMessage(String message);
         void refreshData();
+        void refreshBibleVerse();
     }
 
     private static final float DESIGN_WIDTH = 1280f;
@@ -53,6 +54,8 @@ final class DashboardView extends View {
     private List<Headline> headlines = new ArrayList<>();
     private final Bitmap[] trendingImages = new Bitmap[3];
     private WeatherSnapshot weather;
+    private BibleVerse bibleVerse;
+    private String bibleMessage = "Carregando versículo…";
     private String weatherLocation = "Sua região";
     private String newsMessage = "Buscando manchetes recentes…";
     private String weatherMessage = "Localização necessária para a previsão";
@@ -106,6 +109,12 @@ final class DashboardView extends View {
         weather = value;
         weatherLocation = location == null || location.isEmpty() ? "Sua região" : location;
         weatherMessage = message;
+        invalidate();
+    }
+
+    void setBibleVerse(BibleVerse value, String message) {
+        bibleVerse = value;
+        bibleMessage = message == null ? "" : message;
         invalidate();
     }
 
@@ -248,9 +257,16 @@ final class DashboardView extends View {
             DashboardText.text(canvas, paint, "Fonte meteorológica: Open-Meteo", 999, 153, 0xFFAEBBD0, 8, Typeface.NORMAL);
         }
         drawGlassCard(canvas, 934, 174, 333, 88, selected == 11);
-        DashboardText.text(canvas, paint, timeFormat.format(new Date()), 952, 218, 0xFFFFFFFF, 31, Typeface.NORMAL);
-        DashboardText.text(canvas, paint, dateFormat.format(new Date()), 955, 238, 0xFFDFE6F1, 10, Typeface.NORMAL);
-        DashboardText.text(canvas, paint, "Uma noite tranquila começa por aqui.", 1087, 236, 0xFFBFCBDD, 8, Typeface.NORMAL);
+        DashboardText.text(canvas, paint, "VERSÍCULO DO DIA", 952, 196, 0xFFBBDDF2, 9, Typeface.BOLD);
+        if (bibleVerse == null) {
+            DashboardText.drawWrapped(canvas, paint, bibleMessage, 952, 218, 294, 10, 2,
+                    0xFFE6EDF7, Typeface.NORMAL);
+        } else {
+            DashboardText.drawWrapped(canvas, paint, "“" + bibleVerse.text + "”", 952, 216,
+                    294, 10, 2, 0xFFFFFFFF, Typeface.NORMAL);
+            DashboardText.text(canvas, paint, bibleVerse.reference + "  ·  Almeida", 952, 250,
+                    0xFFBBDDF2, 8, Typeface.BOLD);
+        }
         addHit(10, 934, 90, 333, 75);
         addHit(11, 934, 174, 333, 88);
     }
@@ -414,11 +430,13 @@ final class DashboardView extends View {
     private void moveFocus(int keyCode) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
             if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, -1);
+            else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 27;
             else if (selected >= 23 && selected <= 27) selected = selected == 23 ? 21 : selected - 1;
             else if (selected >= 0 && selected <= 6) selected = selected == 0 ? 6 : selected - 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
             if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, 1);
+            else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 23;
             else if (selected >= 23 && selected <= 27) selected = selected == 27 ? 21 : selected + 1;
             else if (selected >= 0 && selected <= 6) selected = selected == 6 ? 0 : selected + 1;
@@ -449,8 +467,10 @@ final class DashboardView extends View {
             else listener.showMessage("Abra um aplicativo pela dock.");
         } else if (selected == 9) {
             listener.showMessage("Horizon — TV, filmes e séries em um só lugar.");
-        } else if (selected == 10 || selected == 11) {
+        } else if (selected == 10) {
             listener.refreshData();
+        } else if (selected == 11) {
+            listener.refreshBibleVerse();
         } else if (selected == 21) {
             if (lastAppPackage == null) listener.showMessage("Abra um aplicativo pela dock para continuar.");
             else listener.launchPackage(lastAppPackage);
@@ -472,7 +492,8 @@ final class DashboardView extends View {
             Headline item = getHeadline(selected - 23);
             return item == null ? "Notícias" : item.title;
         }
-        if (selected == 10 || selected == 11) return "Clima e hora local";
+        if (selected == 10) return "Clima da sua região";
+        if (selected == 11) return "Versículo bíblico do dia";
         return "Horizon TV";
     }
 

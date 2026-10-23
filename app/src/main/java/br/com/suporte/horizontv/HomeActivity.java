@@ -63,6 +63,7 @@ public final class HomeActivity extends Activity {
     private boolean foreground;
     private DashboardView dashboard;
     private SharedPreferences preferences;
+    private BibleVerseRepository bibleVerses;
     private WeatherSnapshot cachedWeather;
 
     private final Runnable refreshClock = new Runnable() {
@@ -81,14 +82,18 @@ public final class HomeActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        bibleVerses = new BibleVerseRepository(preferences, network, handler);
         dashboard = new DashboardView(this, new DashboardView.Listener() {
             @Override public void launchPackage(String name) { HomeActivity.this.launchPackage(name); }
             @Override public void openNews(String url) { HomeActivity.this.openNews(url); }
             @Override public void showMessage(String message) { Toast.makeText(HomeActivity.this, message, Toast.LENGTH_SHORT).show(); }
             @Override public void refreshData() { refreshDataNow(); }
+            @Override public void refreshBibleVerse() { HomeActivity.this.refreshBibleVerse(true); }
         });
         dashboard.setLastApp(preferences.getString(KEY_LAST_APP_PACKAGE, null),
                 preferences.getString(KEY_LAST_APP_LABEL, null));
+        BibleVerse cachedVerse = bibleVerses.restore();
+        if (cachedVerse != null) dashboard.setBibleVerse(cachedVerse, "Versículo salvo nesta TV");
         setContentView(dashboard);
         List<Headline> cached = NewsCache.load(preferences);
         dashboard.setHeadlines(cached, cached.isEmpty() ? "Conectando às fontes de notícias…" : "Exibindo as últimas manchetes salvas");
@@ -105,6 +110,7 @@ public final class HomeActivity extends Activity {
         handler.removeCallbacks(refreshClock);
         refreshClock.run();
         refreshNews(false);
+        refreshBibleVerse(false);
         if (hasLocationPermission()) findLocation();
         else explainLocationPermission(false);
     }
@@ -143,8 +149,18 @@ public final class HomeActivity extends Activity {
 
     private void refreshDataNow() {
         refreshNews(true);
+        refreshBibleVerse(true);
         if (hasLocationPermission()) findLocation();
         else explainLocationPermission(true);
+    }
+
+    private void refreshBibleVerse(boolean force) {
+        bibleVerses.refresh(force, verse -> {
+            if (!isFinishing() && !isDestroyed()) {
+                dashboard.setBibleVerse(verse,
+                        verse == null ? "Sem conexão · tente atualizar" : "Versículo atualizado");
+            }
+        });
     }
 
     private void refreshNews(boolean force) {
