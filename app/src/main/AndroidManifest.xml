@@ -16,8 +16,6 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <package android:name="com.global.unitviptv" />
-        <package android:name="org.smarttube.stable" />
         <package android:name="com.tcl.tv" />
     </queries>
 

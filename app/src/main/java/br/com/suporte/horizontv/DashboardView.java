@@ -8,7 +8,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -29,20 +28,12 @@ final class DashboardView extends View {
     interface Listener {
         void launchPackage(String packageName);
         void openNews(String url);
-        void openAndroidSettings();
         void showMessage(String message);
         void refreshData();
     }
 
     private static final float DESIGN_WIDTH = 1280f;
     private static final float DESIGN_HEIGHT = 720f;
-    private static final int[] ICON_COLORS = {
-            0xFFE83E68, 0xFF6946F5, 0xFFD331A6, 0xFF11B887, 0xFF347FF0,
-            0xFFE87928, 0xFF7548E8, 0xFF12B9D2, 0xFF65758F
-    };
-    private static final String[] SHORTCUTS = {
-            "Streaming", "Filmes", "Música", "Jogos", "Fotos", "Esportes", "Notícias", "Casa", "Ajustes"
-    };
     private static final String[] NAVIGATION = {
             "Início", "Filmes", "Séries", "TV ao vivo", "Música", "Jogos", "Apps"
     };
@@ -51,6 +42,7 @@ final class DashboardView extends View {
     private final RectF rect = new RectF();
     private final Rect sourceRect = new Rect();
     private final Bitmap backdrop;
+    private final AppShortcutDock appDock = new AppShortcutDock();
     private final Listener listener;
     private final ArrayList<RectF> hitAreas = new ArrayList<>();
     private final DateFormat timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault());
@@ -78,6 +70,11 @@ final class DashboardView extends View {
     void setHeadlines(List<Headline> value, String message) {
         headlines = new ArrayList<>(value);
         newsMessage = message;
+        invalidate();
+    }
+
+    void setAppShortcuts(List<AppShortcut> value) {
+        selected = appDock.update(value, selected);
         invalidate();
     }
 
@@ -235,29 +232,7 @@ final class DashboardView extends View {
     }
 
     private void drawShortcuts(Canvas canvas) {
-        float startX = 135;
-        float step = 113;
-        float cy = 328;
-        for (int i = 0; i < SHORTCUTS.length; i++) {
-            int id = 12 + i;
-            float cx = startX + step * i;
-            boolean focused = selected == id;
-            paint.setColor(ICON_COLORS[i]);
-            canvas.drawCircle(cx, cy, focused ? 29 : 26, paint);
-            if (focused) {
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(2.5f);
-                paint.setColor(0xFFFFFFFF);
-                canvas.drawCircle(cx, cy, 32, paint);
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(0x3355DFFF);
-                canvas.drawCircle(cx, cy, 38, paint);
-            }
-            DashboardGlyphs.drawShortcutGlyph(canvas, paint, rect, i, cx, cy);
-            DashboardText.centerText(canvas, paint, SHORTCUTS[i], cx, 372, focused ? 0xFFFFFFFF : 0xFFE6EAF2,
-                    9, focused ? Typeface.BOLD : Typeface.NORMAL);
-            addHit(id, cx - 43, cy - 42, 86, 57);
-        }
+        appDock.draw(canvas, paint, selected, this::addHit);
     }
 
     private void drawBottomCards(Canvas canvas, float top, float bottom) {
@@ -265,16 +240,13 @@ final class DashboardView extends View {
         float contentTop = top + 14f;
         float contentHeight = height - 28f;
         drawGlassCard(canvas, 13, top, 310, height, selected == 21);
+        addHit(21, 13, top, 310, height);
         drawClippedBackdrop(canvas, 25, contentTop, 72, contentHeight);
         DashboardText.text(canvas, paint, "CONTINUAR", 107, contentTop + 12, 0xFFD7E0EE, 8, Typeface.BOLD);
         DashboardText.text(canvas, paint, "Sua próxima sessão", 107, contentTop + 38, 0xFFFFFFFF, 13, Typeface.BOLD);
         DashboardText.text(canvas, paint, "TV, filmes e séries", 107, contentTop + 56, 0xFFC2CEDF, 9, Typeface.NORMAL);
         float controlsTop = bottom - 68f;
         DashboardText.drawProgress(canvas, paint, rect, 107, controlsTop, 200, 0.38f);
-        drawSmallLaunch(canvas, 107, controlsTop + 17, "UniTV", "com.global.unitviptv", selected == 21);
-        drawSmallLaunch(canvas, 171, controlsTop + 17, "SmartTube", "org.smarttube.stable", selected == 22);
-        addHit(21, 107, controlsTop + 17, 62, 27);
-        addHit(22, 171, controlsTop + 17, 75, 27);
 
         drawGlassCard(canvas, 335, top, 587, height, false);
         DashboardText.text(canvas, paint, "EM ALTA AGORA  ›", 353, contentTop + 8, 0xFFEAF0F8, 9, Typeface.BOLD);
@@ -333,13 +305,6 @@ final class DashboardView extends View {
         }
     }
 
-    private void drawSmallLaunch(Canvas canvas, float x, float y, String label, String packageName, boolean focused) {
-        paint.setColor(focused ? 0xFF55C9F3 : 0xFF23344E);
-        rect.set(x, y, x + 62, y + 27);
-        canvas.drawRoundRect(rect, 12, 12, paint);
-        DashboardText.centerText(canvas, paint, label, x + 31, y + 17, 0xFFFFFFFF, 7, Typeface.BOLD);
-    }
-
     private void drawButton(Canvas canvas, float x, float y, float width, float height,
                             String label, boolean focused, boolean primary) {
         rect.set(x, y, x + width, y + height);
@@ -392,22 +357,24 @@ final class DashboardView extends View {
 
     private void moveFocus(int keyCode) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-            if (selected >= 12 && selected <= 20) selected = selected == 12 ? 20 : selected - 1;
-            else if (selected >= 21 && selected <= 27) selected = selected == 21 ? 27 : selected - 1;
+            if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, -1);
+            else if (selected == 21) selected = 27;
+            else if (selected >= 23 && selected <= 27) selected = selected == 23 ? 21 : selected - 1;
             else if (selected >= 0 && selected <= 6) selected = selected == 0 ? 6 : selected - 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            if (selected >= 12 && selected <= 20) selected = selected == 20 ? 12 : selected + 1;
-            else if (selected >= 21 && selected <= 27) selected = selected == 27 ? 21 : selected + 1;
+            if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, 1);
+            else if (selected == 21) selected = 23;
+            else if (selected >= 23 && selected <= 27) selected = selected == 27 ? 21 : selected + 1;
             else if (selected >= 0 && selected <= 6) selected = selected == 6 ? 0 : selected + 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
             if (selected <= 6) selected = selected == 3 ? 10 : 8;
-            else if (selected == 8 || selected == 9) selected = 12;
-            else if (selected >= 12 && selected <= 20) selected = 21;
-            else if (selected >= 21 && selected <= 27) selected = 12;
+            else if (selected == 8 || selected == 9) selected = AppShortcutDock.SELECTION_BASE;
+            else if (appDock.handlesSelection(selected)) selected = 21;
+            else if (selected >= 21 && selected <= 27) selected = AppShortcutDock.SELECTION_BASE;
             else if (selected == 10 || selected == 11) selected = 23;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (selected >= 12 && selected <= 20) selected = 0;
-            else if (selected == 21 || selected == 22) selected = 12;
+            if (appDock.handlesSelection(selected)) selected = 0;
+            else if (selected == 21) selected = AppShortcutDock.SELECTION_BASE;
             else if (selected >= 23 && selected <= 27) selected = 18;
             else if (selected == 8 || selected == 9) selected = 0;
             else if (selected == 10 || selected == 11) selected = 3;
@@ -422,33 +389,17 @@ final class DashboardView extends View {
         if (selected >= 0 && selected <= 6) {
             selectedNavigation = selected;
             if (selected == 3) listener.launchPackage("com.tcl.tv");
-            else if (selected == 1 || selected == 2) listener.launchPackage("org.smarttube.stable");
-            else if (selected >= 4 && selected <= 5) listener.showMessage("Este atalho fica disponível quando o app correspondente for instalado.");
-            else if (selected == 6) selected = 18;
-        } else if (selected == 8 || selected == 21 || selected == 12) {
-            listener.launchPackage("com.global.unitviptv");
+            else if (selected == 6) selected = AppShortcutDock.SELECTION_BASE;
+            else listener.showMessage("Abra um aplicativo pela dock.");
         } else if (selected == 9) {
             listener.showMessage("Horizon — TV, filmes e séries em um só lugar.");
         } else if (selected == 10 || selected == 11) {
             listener.refreshData();
-        } else if (selected == 13) {
-            listener.launchPackage("org.smarttube.stable");
-        } else if (selected == 14) {
-            listener.showMessage("Instale um app de música para usar este atalho.");
-        } else if (selected == 15) {
-            listener.showMessage("Instale um app de jogos para usar este atalho.");
-        } else if (selected == 16) {
-            listener.showMessage("Instale um app de fotos para usar este atalho.");
-        } else if (selected == 17) {
-            listener.showMessage("Instale um app de esportes para usar este atalho.");
-        } else if (selected == 18) {
-            selected = 23;
-        } else if (selected == 19) {
-            listener.showMessage("Nenhum dispositivo de casa inteligente foi configurado.");
-        } else if (selected == 20) {
-            listener.openAndroidSettings();
-        } else if (selected == 22) {
-            listener.launchPackage("org.smarttube.stable");
+        } else if (selected == 21) {
+            listener.showMessage("Nada está sendo reproduzido agora.");
+        } else if (appDock.handlesSelection(selected)) {
+            String packageName = appDock.packageForSelection(selected);
+            if (packageName != null) listener.launchPackage(packageName);
         } else if (selected >= 23 && selected <= 27) {
             Headline item = getHeadline(selected - 23);
             if (item != null) listener.openNews(item.url);
@@ -458,7 +409,7 @@ final class DashboardView extends View {
 
     private String descriptionForSelection() {
         if (selected >= 0 && selected <= 6) return NAVIGATION[selected];
-        if (selected >= 12 && selected < 12 + SHORTCUTS.length) return SHORTCUTS[selected - 12];
+        if (appDock.handlesSelection(selected)) return appDock.labelForSelection(selected);
         if (selected >= 23 && selected <= 27) {
             Headline item = getHeadline(selected - 23);
             return item == null ? "Notícias" : item.title;

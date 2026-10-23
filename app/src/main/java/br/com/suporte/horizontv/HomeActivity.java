@@ -8,6 +8,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -17,7 +18,6 @@ import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
@@ -25,7 +25,11 @@ import android.widget.Toast;
 import org.json.JSONException;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -75,7 +79,6 @@ public final class HomeActivity extends Activity {
         dashboard = new DashboardView(this, new DashboardView.Listener() {
             @Override public void launchPackage(String name) { HomeActivity.this.launchPackage(name); }
             @Override public void openNews(String url) { HomeActivity.this.openNews(url); }
-            @Override public void openAndroidSettings() { HomeActivity.this.openAndroidSettings(); }
             @Override public void showMessage(String message) { Toast.makeText(HomeActivity.this, message, Toast.LENGTH_SHORT).show(); }
             @Override public void refreshData() { refreshDataNow(); }
         });
@@ -90,6 +93,7 @@ public final class HomeActivity extends Activity {
     protected void onStart() {
         super.onStart();
         foreground = true;
+        refreshAppShortcuts();
         handler.removeCallbacks(refreshClock);
         refreshClock.run();
         refreshNews(false);
@@ -368,6 +372,27 @@ public final class HomeActivity extends Activity {
         }
     }
 
+    private void refreshAppShortcuts() {
+        network.execute(() -> {
+            PackageManager packageManager = getPackageManager();
+            Set<String> packageNames = new HashSet<>();
+            List<AppShortcut> shortcuts = new ArrayList<>();
+            for (String category : new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER}) {
+                Intent launcherIntent = new Intent(Intent.ACTION_MAIN).addCategory(category);
+                for (ResolveInfo activity : packageManager.queryIntentActivities(launcherIntent, 0)) {
+                    String packageName = activity.activityInfo.packageName;
+                    if (getPackageName().equals(packageName) || !packageNames.add(packageName)) continue;
+                    String label = activity.loadLabel(packageManager).toString().trim();
+                    shortcuts.add(new AppShortcut(packageName, label, activity.loadIcon(packageManager)));
+                }
+            }
+            Collections.sort(shortcuts, (left, right) -> left.label.compareToIgnoreCase(right.label));
+            handler.post(() -> {
+                if (foreground && !isFinishing()) dashboard.setAppShortcuts(shortcuts);
+            });
+        });
+    }
+
     private void openNews(String url) {
         if (!NewsFeedReader.isAllowedArticleUrl(url)) {
             Toast.makeText(this, "Link de notícia inválido.", Toast.LENGTH_SHORT).show();
@@ -379,14 +404,6 @@ public final class HomeActivity extends Activity {
             startActivity(intent);
         } catch (ActivityNotFoundException error) {
             Toast.makeText(this, "Instale um navegador para abrir a notícia.", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void openAndroidSettings() {
-        try {
-            startActivity(new Intent(Settings.ACTION_SETTINGS));
-        } catch (ActivityNotFoundException error) {
-            Toast.makeText(this, "Configurações indisponíveis.", Toast.LENGTH_SHORT).show();
         }
     }
 
