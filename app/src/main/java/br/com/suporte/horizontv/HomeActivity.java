@@ -62,6 +62,7 @@ public final class HomeActivity extends Activity {
     private DashboardView dashboard;
     private SharedPreferences preferences;
     private BibleVerseRepository bibleVerses;
+    private FilmSuggestionController movieSuggestions;
     private WeatherSnapshot cachedWeather;
     private DynamicWallpaperManager wallpapers;
 
@@ -93,7 +94,21 @@ public final class HomeActivity extends Activity {
             @Override public void openEmailClient() {
                 startActivity(new Intent(HomeActivity.this, EmailClientActivity.class));
             }
+            @Override public void openMovieDetails(String url) { HomeActivity.this.openMovieDetails(url); }
+            @Override public void refreshMovieSuggestion() { movieSuggestions.refresh(true); }
         });
+        movieSuggestions = new FilmSuggestionController(preferences, network, newsImages, handler,
+                new FilmSuggestionController.Listener() {
+                    @Override public void onFilmLoaded(FilmSuggestion film, Bitmap image) {
+                        if (!isFinishing() && !isDestroyed()) dashboard.setFeaturedFilm(film, image, "Filme em destaque");
+                    }
+
+                    @Override public void onCatalogUnavailable() {
+                        if (!isFinishing() && !isDestroyed()) {
+                            dashboard.setFeaturedFilm(null, null, "Sem conexão com o catálogo");
+                        }
+                    }
+                });
         wallpapers = new DynamicWallpaperManager(new DynamicWallpaperStore(this, preferences),
                 wallpaperNetwork, handler, new DynamicWallpaperManager.Listener() {
             @Override public void onWallpaperChanged(Bitmap image, OpenverseImage metadata) {
@@ -111,6 +126,8 @@ public final class HomeActivity extends Activity {
                 preferences.getString(KEY_LAST_APP_LABEL, null));
         BibleVerse cachedVerse = bibleVerses.restore();
         if (cachedVerse != null) dashboard.setBibleVerse(cachedVerse, "Versículo salvo nesta TV");
+        FilmSuggestion cachedFilm = FilmSuggestionStore.load(preferences);
+        if (cachedFilm != null) dashboard.setFeaturedFilm(cachedFilm, null, "Filme em destaque");
         setContentView(dashboard);
         List<Headline> cached = NewsCache.load(preferences);
         dashboard.setHeadlines(cached, cached.isEmpty() ? "Conectando às fontes de notícias…" : "Exibindo as últimas manchetes salvas");
@@ -127,6 +144,7 @@ public final class HomeActivity extends Activity {
         handler.removeCallbacks(refreshClock);
         refreshClock.run();
         refreshNews(false);
+        movieSuggestions.refresh(false);
         refreshBibleVerse(false);
         if (hasLocationPermission()) findLocation();
         else explainLocationPermission(false);
@@ -167,6 +185,7 @@ public final class HomeActivity extends Activity {
 
     private void refreshDataNow() {
         refreshNews(true);
+        movieSuggestions.refresh(true);
         refreshBibleVerse(true);
         if (hasLocationPermission()) findLocation();
         else explainLocationPermission(true);
@@ -485,6 +504,23 @@ public final class HomeActivity extends Activity {
             startActivity(intent);
         } catch (ActivityNotFoundException error) {
             Toast.makeText(this, "Instale um navegador para abrir a notícia.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openMovieDetails(String url) {
+        Uri target = Uri.parse(url);
+        boolean validTmdb = "www.themoviedb.org".equals(target.getHost())
+                && target.getPath() != null && target.getPath().matches("/movie/[0-9]+");
+        boolean validImdb = "www.imdb.com".equals(target.getHost())
+                && target.getPath() != null && target.getPath().matches("/title/tt[0-9]{5,12}");
+        if (!"https".equals(target.getScheme()) || (!validTmdb && !validImdb)) {
+            Toast.makeText(this, "Link do filme inválido.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, target).addCategory(Intent.CATEGORY_BROWSABLE));
+        } catch (ActivityNotFoundException error) {
+            Toast.makeText(this, "Instale um navegador para abrir os detalhes do filme.", Toast.LENGTH_SHORT).show();
         }
     }
 

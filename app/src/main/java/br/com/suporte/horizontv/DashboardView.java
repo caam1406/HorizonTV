@@ -30,6 +30,8 @@ final class DashboardView extends View {
         void refreshData();
         void refreshBibleVerse();
         void openEmailClient();
+        void openMovieDetails(String url);
+        void refreshMovieSuggestion();
     }
 
     private static final float DESIGN_WIDTH = 1280f;
@@ -48,6 +50,9 @@ final class DashboardView extends View {
     private final ArrayList<RectF> hitAreas = new ArrayList<>();
     private List<Headline> headlines = new ArrayList<>();
     private final Bitmap[] trendingImages = new Bitmap[3];
+    private FilmSuggestion featuredFilm;
+    private Bitmap featuredFilmImage;
+    private String featuredFilmMessage = "Buscando filmes…";
     private WeatherSnapshot weather;
     private BibleVerse bibleVerse;
     private String bibleMessage = "Carregando versículo…";
@@ -111,6 +116,13 @@ final class DashboardView extends View {
     void setBibleVerse(BibleVerse value, String message) {
         bibleVerse = value;
         bibleMessage = message == null ? "" : message;
+        invalidate();
+    }
+
+    void setFeaturedFilm(FilmSuggestion value, Bitmap image, String message) {
+        featuredFilm = value;
+        featuredFilmImage = image;
+        featuredFilmMessage = message;
         invalidate();
     }
 
@@ -199,15 +211,43 @@ final class DashboardView extends View {
     }
 
     private void drawHero(Canvas canvas) {
-        DashboardText.text(canvas, paint, "EM DESTAQUE", 116, 112, 0xFFB9C7DA, 11, Typeface.BOLD);
-        DashboardText.letterSpaced(canvas, paint, "HORIZON", 116, 164, 0xFFFFFFFF, 38, 8f);
-        DashboardText.letterSpaced(canvas, paint, "UM NOVO AMANHÃ", 119, 188, 0xFFF0F4FF, 8, 5f);
-        DashboardText.text(canvas, paint, "Uma jornada extraordinária em um mundo", 118, 216, 0xFFE1E6EF, 12, Typeface.NORMAL);
-        DashboardText.text(canvas, paint, "que acaba de ganhar um novo horizonte.", 118, 233, 0xFFE1E6EF, 12, Typeface.NORMAL);
-        drawButton(canvas, 116, 250, 94, 31, "▶  Assistir", selected == HERO_WATCH_SELECTION, true);
-        drawButton(canvas, 220, 250, 88, 31, "Mais info", selected == 9, false);
-        addHit(HERO_WATCH_SELECTION, 116, 250, 94, 31);
-        addHit(9, 220, 250, 88, 31);
+        drawFeaturedFilmImage(canvas);
+        DashboardText.text(canvas, paint, "SUGESTÃO DE FILME  ·  CINEMETA", 31, 112, 0xFFB9C7DA, 10, Typeface.BOLD);
+        if (featuredFilm == null) {
+            DashboardText.text(canvas, paint, featuredFilmMessage, 31, 161, 0xFFFFFFFF, 25, Typeface.BOLD);
+            DashboardText.text(canvas, paint, "A sugestão aparece quando o catálogo estiver disponível.",
+                    33, 194, 0xFFE1E6EF, 11, Typeface.NORMAL);
+        } else {
+            DashboardText.text(canvas, paint, DashboardText.ellipsis(paint, featuredFilm.title, 422, 30),
+                    31, 157, 0xFFFFFFFF, 30, Typeface.BOLD);
+            String details = featuredFilm.year;
+            if (!featuredFilm.genres.isEmpty()) details += (details.isEmpty() ? "" : "  ·  ") + featuredFilm.genres;
+            DashboardText.text(canvas, paint, DashboardText.ellipsis(paint, details, 422, 10),
+                    33, 178, 0xFFB9C7DA, 10, Typeface.BOLD);
+            DashboardText.drawWrapped(canvas, paint, featuredFilm.description.isEmpty()
+                            ? "Uma sugestão selecionada entre os filmes populares do catálogo."
+                            : featuredFilm.description,
+                    33, 202, 422, 11, 2, 0xFFE1E6EF, Typeface.NORMAL);
+        }
+        drawButton(canvas, 31, 250, 115, 31, "Ver no TMDB", selected == HERO_WATCH_SELECTION, true);
+        drawButton(canvas, 155, 250, 126, 31, "Outra sugestão", selected == 9, false);
+        addHit(HERO_WATCH_SELECTION, 31, 250, 115, 31);
+        addHit(9, 155, 250, 126, 31);
+    }
+
+    private void drawFeaturedFilmImage(Canvas canvas) {
+        RectF area = new RectF(13, 92, 473.5f, 289);
+        drawGlassCard(canvas, area.left, area.top, area.width(), area.height(),
+                selected == HERO_WATCH_SELECTION || selected == 9);
+        if (featuredFilmImage == null) return;
+        drawHeadlineImage(canvas, featuredFilmImage, area);
+        paint.setShader(new LinearGradient(13, 0, 473.5f, 0,
+                new int[]{0xE8060A17, 0xC0060A17, 0x90060A17, 0x70060A17},
+                new float[]{0f, 0.55f, 0.82f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(area, paint);
+        paint.setShader(null);
+        paint.setColor(0x50060A17);
+        canvas.drawRoundRect(area, 16, 16, paint);
     }
 
     private void drawWeather(Canvas canvas) {
@@ -402,12 +442,14 @@ final class DashboardView extends View {
     private void moveFocus(int keyCode) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
             if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, -1);
+            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = selected == HERO_WATCH_SELECTION ? 9 : HERO_WATCH_SELECTION;
             else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 27;
             else if (selected >= 23 && selected <= 27) selected = selected == 23 ? 21 : selected - 1;
             else if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) selected = selected == 0 ? DashboardNavigation.ITEM_COUNT - 1 : selected - 1;
         } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
             if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, 1);
+            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = selected == HERO_WATCH_SELECTION ? 9 : HERO_WATCH_SELECTION;
             else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
             else if (selected == 21) selected = 23;
             else if (selected >= 23 && selected <= 27) selected = selected == 27 ? 21 : selected + 1;
@@ -440,7 +482,9 @@ final class DashboardView extends View {
             else if (selected == 6) selected = AppShortcutDock.SELECTION_BASE;
             else listener.showMessage("Abra um aplicativo pela dock.");
         } else if (selected == HERO_WATCH_SELECTION || selected == 9) {
-            listener.showMessage("Horizon — TV, filmes e séries em um só lugar.");
+            if (selected == 9) listener.refreshMovieSuggestion();
+            else if (featuredFilm == null) listener.showMessage("A sugestão de filme ainda está carregando.");
+            else listener.openMovieDetails(featuredFilm.detailsUrl());
         } else if (selected == 10) {
             listener.refreshData();
         } else if (selected == 11) {
@@ -470,6 +514,9 @@ final class DashboardView extends View {
         }
         if (selected == 10) return "Clima da sua região";
         if (selected == 11) return "Versículo bíblico do dia";
+        if (selected == HERO_WATCH_SELECTION) return featuredFilm == null
+                ? "Filme em destaque" : "Abrir " + featuredFilm.title + " no TMDB";
+        if (selected == 9) return "Buscar outra sugestão de filme";
         return "Horizon TV";
     }
 
