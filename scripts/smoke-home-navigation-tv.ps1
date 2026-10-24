@@ -26,9 +26,9 @@ Invoke-TvAdb @('shell', 'am', 'force-stop', $packageName) | Out-Null
 Invoke-TvAdb @('shell', 'input', 'keyevent', 'HOME') | Out-Null
 Start-Sleep -Seconds 4
 
-$home = (Invoke-TvAdb @('shell', 'uiautomator', 'dump', $hierarchyPath) | Out-String)
-$home += (Invoke-TvAdb @('shell', 'cat', $hierarchyPath) | Out-String)
-if ($home -notmatch 'Horizon TV, tela inicial') { throw 'A tecla HOME não abriu o Horizon pela jornada normal da TV.' }
+$homeHierarchy = (Invoke-TvAdb @('shell', 'uiautomator', 'dump', $hierarchyPath) | Out-String)
+$homeHierarchy += (Invoke-TvAdb @('shell', 'cat', $hierarchyPath) | Out-String)
+if ($homeHierarchy -notmatch 'Horizon TV, tela inicial') { throw 'A tecla HOME não abriu o Horizon pela jornada normal da TV.' }
 
 for ($step = 0; $step -lt 8; $step++) {
     Invoke-TvAdb @('shell', 'input', 'keyevent', 'DPAD_RIGHT') | Out-Null
