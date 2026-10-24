@@ -31,22 +31,22 @@ Os cartões e a dock são dimensionados pela largura e altura da tela; a faixa i
 - A API Pexels foi avaliada para esse recurso e não foi usada: suas [diretrizes oficiais](https://www.pexels.com/api/documentation/) proíbem disponibilizar conteúdo como um app de papéis de parede e exigem uma chave em cada requisição.
 - O cartão que antes repetia o relógio agora mostra um versículo aleatório diário em português, na tradução João Ferreira de Almeida, fornecido pela [bible-api.com](https://bible-api.com/). O texto e a referência ficam no cache privado da TV; a consulta ocorre uma vez ao dia e também pode ser solicitada ao selecionar o cartão. O serviço informa que a tradução está em domínio público, limita o uso a 15 requisições por IP a cada 30 segundos e não garante disponibilidade; sem rede, o último versículo continua visível.
 - O destaque mostra um filme popular obtido sem cadastro no catálogo público Cinemeta do Stremio. Título, sinopse e ano ficam em cache local por 24 horas; a imagem é baixada ao abrir a tela inicial, somente de `images.metahub.space`, com limites de tamanho e dimensões. **Ver no TMDB** abre a ficha do TMDb quando o catálogo fornece seu identificador, e **Outra sugestão** busca outro título. A consulta não usa a API oficial do TMDb, que exige chave; o Cinemeta não publica garantia de estabilidade e pode mudar ou ficar indisponível. Referências: [catálogo oficial de complementos Stremio](https://github.com/Stremio/stremio-official-addons/blob/master/index.json) e [endpoint de filmes populares](https://cinemeta-catalogs.strem.io/top/catalog/movie/top.json).
-- O item **E-mail** abre um cliente IMAP somente leitura. Informe o servidor, a porta TLS, o usuário e a senha IMAP fornecidos pelo provedor. O Horizon salva a senha cifrada com AES-GCM usando uma chave do Android Keystore; as configurações ficam no armazenamento privado, excluído do backup. A conexão valida o certificado TLS, consulta somente a caixa INBOX, lista no máximo 25 mensagens e mostra apenas texto simples limitado a 60 mil caracteres; não abre HTML nem anexos, não envia mensagens e não altera o estado lido/não lido. O cliente não usa o seletor Google da TV nem acessa notificações. Para Gmail, este cliente não implementa OAuth/“Fazer login com o Google”: a senha usual da conta não é aceita por apps terceiros, e senhas de app só funcionam em contas elegíveis com verificação em duas etapas. Contas Google Workspace podem exigir OAuth. Consulte a [orientação oficial do Google](https://support.google.com/mail/answer/7126229?hl=pt-BR); nunca envie a senha pelo chat.
 - O nome do bairro vem de uma consulta reversa Nominatim, com agente `HorizonTV/1.0`, atribuição `© OpenStreetMap contributors` na tela e cache para evitar consultas periódicas. Aplicam-se a [documentação da API](https://nominatim.org/release-docs/latest/api/Reverse/) e a [política de uso](https://operations.osmfoundation.org/policies/nominatim/).
 - Notícias são manchetes gerais do Brasil, obtidas por RSS do [G1](https://g1.globo.com/rss/g1/) e da [Agência Brasil](https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml). A tela atualiza a cada 15 minutos, identifica a fonte e abre os artigos apenas por HTTPS nos domínios dessas fontes.
 - A sugestão de filme consulta apenas um catálogo público, sem enviar identificadores da TV ou dados de conta. URLs de metadados são fixas; imagens e links de detalhes são validados por HTTPS, domínio e caminho, redirecionamentos são desativados e as respostas têm limites de tamanho. Verificação de segurança: [MITRE CWE-918, versão 4.20](https://cwe.mitre.org/data/definitions/918), [OWASP ASVS 5.0.0](https://owasp.org/www-project-application-security-verification-standard/); sem dependências novas, portanto não houve consulta OSV de pacotes adicionados.
 - Conteúdo RSS é externo e tratado como dado: o parser limita a resposta a 512 KiB, bloqueia DTD/entidades externas, e os links são validados por protocolo e host. As preferências que incluem coordenadas ficam excluídas do backup e da transferência do Android.
-- Permissões declaradas: internet e localização aproximada. Tráfego HTTP sem TLS é desativado. O cliente pede que a pessoa informe usuário e senha IMAP na tela do Horizon, sem usar o gerenciador de contas Android. O app não pede microfone, armazenamento ou localização precisa.
+- Na primeira abertura após esta atualização, configurações e chaves locais da funcionalidade descontinuada são removidas.
+- Permissões declaradas: internet e localização aproximada. Tráfego HTTP sem TLS é desativado. O app não pede microfone, armazenamento ou localização precisa.
 
 ## Compilar e verificar
 
-Requisitos locais: JDK 21 e Android SDK com plataforma 34 e Build Tools instaladas. O alvo mínimo é Android 8 (API 26); a TV informada roda Android 12 (API 31). A conexão IMAP usa Eclipse Angus Mail para Android.
+Requisitos locais: JDK 21 e Android SDK com plataforma 34 e Build Tools instaladas. O alvo mínimo é Android 8 (API 26); a TV informada roda Android 12 (API 31).
 
 ```powershell
 .\gradlew.bat --no-daemon testReleaseUnitTest lintRelease assembleRelease
 ```
 
-O APK é `app/build/outputs/apk/release/app-release.apk`. Os testes unitários cobrem parsing RSS, remoção de marcação, rejeição de URLs inseguros, bloqueio de entidades XML, descrição meteorológica e limites/parsing seguro do cliente IMAP. O lint e o build release fazem parte do mesmo gate.
+O APK é `app/build/outputs/apk/release/app-release.apk`. Os testes unitários cobrem parsing RSS, remoção de marcação, rejeição de URLs inseguros, bloqueio de entidades XML, descrição meteorológica e navegação da barra superior. O lint e o build release fazem parte do mesmo gate.
 
 ## Instalação e retorno
 
@@ -71,11 +71,11 @@ $env:TV_HOST = '<ip-da-tv>:5555'
 .\scripts\smoke-tv.ps1
 ```
 
-O smoke dedicado ao cliente IMAP abre o Horizon pela atividade de TV, navega até **E-mail**, confere a tela de configuração e volta à tela inicial. Ele não informa credenciais nem altera o acesso de notificações:
+O smoke da navegação da tela inicial abre o Horizon pela TV e percorre os oito itens da barra superior até retornar ao início:
 
 ```powershell
 $env:TV_HOST = '<ip-da-tv>:5555'
-.\scripts\smoke-email-client-tv.ps1
+.\scripts\smoke-home-navigation-tv.ps1
 ```
 
 Para conferir os cards com as imagens das manchetes, use o smoke dedicado. Ele compila, instala, abre Horizon pela tela inicial, aguarda a consulta de notícias e salva uma captura local para inspeção visual:
@@ -103,7 +103,6 @@ O usuário pode conceder ou negar localização na própria tela. Se a TV não t
 
 ## Análise de segurança (2026-10-23)
 
-- **Cliente de e-mail IMAP** — entrada por servidor e credenciais digitadas pela pessoa; conexão somente com IMAPS/TLS, com verificação do certificado e da identidade do servidor para reduzir falsificação (CWE-295); `INBOX` em modo somente leitura; limite de 25 resumos e 60 mil caracteres de texto simples por mensagem. HTML, anexos e ações de envio não são executados. A senha não fica em texto claro no armazenamento (CWE-256): é cifrada com AES-GCM por chave Android Keystore e fica em preferências privadas sem backup. O app não registra credenciais, conteúdo de mensagens nem traços IMAP, e não pede acesso geral a notificações. Verificação: testes unitários validam rejeição de host/porta inválidos, seleção de texto simples e limites de corpo; smoke na TCL percorre a navegação normal e confirma a tela de configuração e o retorno ao launcher sem credenciais; consulta OSV em 2026-10-23 não encontrou avisos para `org.eclipse.angus:jakarta.mail:2.0.5`, `org.eclipse.angus:angus-activation:2.0.3` e `jakarta.activation:jakarta.activation-api:2.1.4`. Limitação: a leitura de uma caixa remota real depende de credenciais fornecidas localmente e não foi testada; autenticação OAuth para Gmail não está implementada. Referências oficiais consultadas em 2026-10-23: [Eclipse Angus Mail para Android](https://eclipse-ee4j.github.io/angus-mail/Android), [documentação IMAP do Angus](https://eclipse-ee4j.github.io/angus-mail/docs/api/org.eclipse.angus.mail/org/eclipse/angus/mail/imap/package-summary.html), [API Android Keystore](https://developer.android.com/privacy-and-security/keystore), [CWE-295](https://cwe.mitre.org/data/definitions/295.html), [CWE-256](https://cwe.mitre.org/data/definitions/256.html), [OSV](https://osv.dev/) e [documentação do Google sobre Gmail em outros clientes](https://support.google.com/mail/answer/7126229?hl=pt-BR).
 - **Referência local do card Continuar** — nome e pacote são valores simples em preferências privadas do app; não há permissão de histórico de uso nem transmissão. Verificação: inspeção do armazenamento `MODE_PRIVATE`, manifesto e fluxo de abertura. Referência oficial consultada em 2026-10-23: [armazenamento de dados e preferências no Android](https://developer.android.com/training/data-storage).
 - **Visibilidade de apps instalados** — a dock consulta atividades de inicialização por meio de assinaturas declaradas em `<queries>` no manifesto; não usa `QUERY_ALL_PACKAGES` e não transmite a lista. Revisão estática de `AndroidManifest.xml` e do fluxo `queryIntentActivities`; build e lint concluídos. Referência oficial consultada em 2026-10-23: [Package visibility on Android](https://developer.android.com/training/package-visibility).
 - **XML externo / CWE-611** — feeds RSS são entrada não confiável; DTD, entidades externas e resolução de DTD são desativadas. Verificação: `NewsFeedReaderTest.rejectsExternalEntityDeclarations`; resultado esperado: parser rejeita o documento. Referência oficial: https://cwe.mitre.org/data/definitions/611 .

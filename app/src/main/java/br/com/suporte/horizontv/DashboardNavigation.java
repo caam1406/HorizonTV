@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Locale;
 
 final class DashboardNavigation {
-    static final int ITEM_COUNT = 9;
+    static final int ITEM_COUNT = 8;
     private static final String[] ITEMS = {
-            "Início", "Filmes", "Séries", "TV ao vivo", "Música", "Jogos", "Apps", "Personalizar", "E-mail"
+            "Início", "Filmes", "Séries", "TV ao vivo", "Música", "Jogos", "Apps", "Personalizar"
     };
 
     private final DateFormat timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault());
@@ -24,9 +24,9 @@ final class DashboardNavigation {
     List<RectF> draw(Canvas canvas, Paint paint, int selected, int selectedNavigation) {
         ArrayList<RectF> hitAreas = new ArrayList<>();
         DashboardGlyphs.drawSearch(canvas, paint, 85, 39);
-        float[] centers = {158, 222, 296, 375, 455, 520, 590, 685, 779};
+        float[] centers = {158, 233, 310, 390, 470, 545, 625, 728};
         for (int index = 0; index < ITEMS.length; index++) {
-            float width = index == 3 ? 78 : (index == 7 ? 90 : (index == 8 ? 78 : (index == 0 ? 58 : 64)));
+            float width = index == 3 ? 78 : (index == 7 ? 90 : (index == 0 ? 58 : 64));
             float x = centers[index] - width / 2f;
             float y = 34;
             boolean focused = selected == index;
@@ -51,7 +51,7 @@ final class DashboardNavigation {
         return hitAreas;
     }
 
-    String labelFor(int index) {
+    static String labelFor(int index) {
         return ITEMS[index];
     }
 }

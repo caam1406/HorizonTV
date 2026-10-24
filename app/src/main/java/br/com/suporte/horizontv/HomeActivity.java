@@ -85,7 +85,7 @@ public final class HomeActivity extends Activity {
         super.onCreate(state);
         displayResolution = DisplayResolution.from(this);
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
-        preferences.edit().remove("selected_gmail_account").remove("gmail_notification_count").apply();
+        RetiredEmailDataCleanup.clear(this);
         bibleVerses = new BibleVerseRepository(preferences, network, handler);
         dashboard = new DashboardView(this, new DashboardView.Listener() {
             @Override public void launchPackage(String name) { appShortcuts.launch(name); }
@@ -94,9 +94,6 @@ public final class HomeActivity extends Activity {
             @Override public void openBackgroundSettings() { WallpaperSettingsDialog.show(HomeActivity.this, wallpapers); }
             @Override public void refreshData() { refreshDataNow(); }
             @Override public void refreshBibleVerse() { HomeActivity.this.refreshBibleVerse(true); }
-            @Override public void openEmailClient() {
-                startActivity(new Intent(HomeActivity.this, EmailClientActivity.class));
-            }
             @Override public void openMovieDetails(String url) { HomeActivity.this.openMovieDetails(url); }
             @Override public void refreshMovieSuggestion() { movieSuggestions.refresh(true); }
         });

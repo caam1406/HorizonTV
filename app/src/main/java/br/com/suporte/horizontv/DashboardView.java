@@ -29,15 +29,15 @@ final class DashboardView extends SurfaceView implements SurfaceHolder.Callback 
         void openBackgroundSettings();
         void refreshData();
         void refreshBibleVerse();
-        void openEmailClient();
         void openMovieDetails(String url);
         void refreshMovieSuggestion();
     }
 
     private static final float DESIGN_WIDTH = 1280f;
     private static final float DESIGN_HEIGHT = 720f;
-    private static final int TRENDING_STORY_COUNT = 3;
-    private static final int HERO_WATCH_SELECTION = 30;
+    static final int TRENDING_STORY_COUNT = 3;
+    private static final int HERO_WATCH_SELECTION = DashboardFocusNavigation.HERO_WATCH_SELECTION;
+    private static final DashboardFocusNavigation focusNavigation = new DashboardFocusNavigation();
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF rect = new RectF();
@@ -448,35 +448,10 @@ final class DashboardView extends SurfaceView implements SurfaceHolder.Callback 
     }
 
     private void moveFocus(int keyCode) {
-        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-            if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, -1);
-            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = selected == HERO_WATCH_SELECTION ? 9 : HERO_WATCH_SELECTION;
-            else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
-            else if (selected == 21) selected = 27;
-            else if (selected >= 23 && selected <= 27) selected = selected == 23 ? 21 : selected - 1;
-            else if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) selected = selected == 0 ? DashboardNavigation.ITEM_COUNT - 1 : selected - 1;
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            if (appDock.handlesSelection(selected)) selected = appDock.moveFocus(selected, 1);
-            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = selected == HERO_WATCH_SELECTION ? 9 : HERO_WATCH_SELECTION;
-            else if (selected == 10 || selected == 11) selected = selected == 10 ? 11 : 10;
-            else if (selected == 21) selected = 23;
-            else if (selected >= 23 && selected <= 27) selected = selected == 27 ? 21 : selected + 1;
-            else if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) selected = selected == DashboardNavigation.ITEM_COUNT - 1 ? 0 : selected + 1;
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-            if (selected < DashboardNavigation.ITEM_COUNT) selected = selected == 3 ? 10 : HERO_WATCH_SELECTION;
-            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = AppShortcutDock.SELECTION_BASE;
-            else if (appDock.handlesSelection(selected)) selected = 21;
-            else if (selected >= 21 && selected <= 27) selected = AppShortcutDock.SELECTION_BASE;
-            else if (selected == 10 || selected == 11) selected = 23;
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (appDock.handlesSelection(selected)) selected = 0;
-            else if (selected == 21) selected = AppShortcutDock.SELECTION_BASE;
-            else if (selected >= 23 && selected <= 27) selected = 18;
-            else if (selected == HERO_WATCH_SELECTION || selected == 9) selected = 0;
-            else if (selected == 10 || selected == 11) selected = 3;
-        }
+        selected = focusNavigation.moveFocus(selected, keyCode, appDock);
         if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) selectedNavigation = selected;
-        setContentDescription(descriptionForSelection());
+        setContentDescription(focusNavigation.descriptionForSelection(
+                selected, appDock, lastAppLabel, featuredFilm, headlines));
         sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
         invalidate();
     }
@@ -485,7 +460,6 @@ final class DashboardView extends SurfaceView implements SurfaceHolder.Callback 
         if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) {
             selectedNavigation = selected;
             if (selected == 7) listener.openBackgroundSettings();
-            else if (selected == 8) listener.openEmailClient();
             else if (selected == 3) listener.launchPackage("com.tcl.tv");
             else if (selected == 6) selected = AppShortcutDock.SELECTION_BASE;
             else listener.showMessage("Abra um aplicativo pela dock.");
@@ -508,24 +482,6 @@ final class DashboardView extends SurfaceView implements SurfaceHolder.Callback 
             if (item != null) listener.openNews(item.url);
         }
         invalidate();
-    }
-
-    private String descriptionForSelection() {
-        if (selected >= 0 && selected < DashboardNavigation.ITEM_COUNT) {
-            return navigation.labelFor(selected);
-        }
-        if (appDock.handlesSelection(selected)) return appDock.labelForSelection(selected);
-        if (selected == 21 && lastAppLabel != null) return "Continuar " + lastAppLabel;
-        if (selected >= 23 && selected <= 27) {
-            Headline item = getNewsRowHeadline(selected - 23);
-            return item == null ? "Notícias" : item.title;
-        }
-        if (selected == 10) return "Clima da sua região";
-        if (selected == 11) return "Versículo bíblico do dia";
-        if (selected == HERO_WATCH_SELECTION) return featuredFilm == null
-                ? "Filme em destaque" : "Abrir " + featuredFilm.title + " no TMDB";
-        if (selected == 9) return "Buscar outra sugestão de filme";
-        return "Horizon TV";
     }
 
     private Headline getHeadline(int index) {
