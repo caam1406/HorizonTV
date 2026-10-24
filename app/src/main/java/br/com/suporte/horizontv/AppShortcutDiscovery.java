@@ -1,5 +1,6 @@
 package br.com.suporte.horizontv;
 
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -27,7 +28,9 @@ final class AppShortcutDiscovery {
                 if (ownPackage.equals(packageName) || HIDDEN_HOME_PACKAGE.equals(packageName)
                         || !packageNames.add(packageName)) continue;
                 String label = activity.loadLabel(packageManager).toString().trim();
-                shortcuts.add(new AppShortcut(packageName, label, activity.loadIcon(packageManager)));
+                shortcuts.add(new AppShortcut(packageName, label,
+                        new ComponentName(packageName, activity.activityInfo.name), category,
+                        activity.loadIcon(packageManager)));
             }
         }
         Collections.sort(shortcuts, (left, right) -> left.label.compareToIgnoreCase(right.label));

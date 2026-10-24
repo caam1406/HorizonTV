@@ -65,6 +65,7 @@ public final class HomeActivity extends Activity {
     private FilmSuggestionController movieSuggestions;
     private WeatherSnapshot cachedWeather;
     private DynamicWallpaperManager wallpapers;
+    private AppShortcutController appShortcuts;
 
     private final Runnable refreshClock = new Runnable() {
         @Override
@@ -85,7 +86,7 @@ public final class HomeActivity extends Activity {
         preferences.edit().remove("selected_gmail_account").remove("gmail_notification_count").apply();
         bibleVerses = new BibleVerseRepository(preferences, network, handler);
         dashboard = new DashboardView(this, new DashboardView.Listener() {
-            @Override public void launchPackage(String name) { HomeActivity.this.launchPackage(name); }
+            @Override public void launchPackage(String name) { appShortcuts.launch(name); }
             @Override public void openNews(String url) { HomeActivity.this.openNews(url); }
             @Override public void showMessage(String message) { Toast.makeText(HomeActivity.this, message, Toast.LENGTH_SHORT).show(); }
             @Override public void openBackgroundSettings() { WallpaperSettingsDialog.show(HomeActivity.this, wallpapers); }
@@ -129,6 +130,8 @@ public final class HomeActivity extends Activity {
         FilmSuggestion cachedFilm = FilmSuggestionStore.load(preferences);
         if (cachedFilm != null) dashboard.setFeaturedFilm(cachedFilm, null, "Filme em destaque");
         setContentView(dashboard);
+        appShortcuts = new AppShortcutController(this, preferences, dashboard, network, handler,
+                () -> foreground);
         List<Headline> cached = NewsCache.load(preferences);
         dashboard.setHeadlines(cached, cached.isEmpty() ? "Conectando às fontes de notícias…" : "Exibindo as últimas manchetes salvas");
         loadHeadlineImages(cached);
@@ -140,7 +143,7 @@ public final class HomeActivity extends Activity {
     protected void onStart() {
         super.onStart();
         foreground = true;
-        refreshAppShortcuts();
+        appShortcuts.refresh();
         handler.removeCallbacks(refreshClock);
         refreshClock.run();
         refreshNews(false);
@@ -436,60 +439,6 @@ public final class HomeActivity extends Activity {
                             cachedWeather == null ? "Sem conexão para atualizar o clima" : "Sem conexão · último dado salvo");
                 });
             }
-        });
-    }
-
-    private void launchPackage(String packageName) {
-        Intent launch = getPackageManager().getLeanbackLaunchIntentForPackage(packageName);
-        if (launch == null) launch = getPackageManager().getLaunchIntentForPackage(packageName);
-        if (launch == null && "com.tcl.tv".equals(packageName)) {
-            launch = new Intent(Intent.ACTION_MAIN).setPackage(packageName)
-                    .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
-        }
-        if (launch == null) {
-            clearLastAppIfMatching(packageName);
-            Toast.makeText(this, "O app ainda não está instalado.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        try {
-            startActivity(launch);
-            rememberLastApp(packageName);
-        } catch (ActivityNotFoundException error) {
-            clearLastAppIfMatching(packageName);
-            Toast.makeText(this, "Não foi possível abrir este app.", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void rememberLastApp(String packageName) {
-        String label = packageName;
-        try {
-            PackageManager packageManager = getPackageManager();
-            label = packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0))
-                    .toString().trim();
-        } catch (PackageManager.NameNotFoundException ignored) {
-            // Keep the package name as a fallback label when package metadata is unavailable.
-        }
-        preferences.edit().putString(KEY_LAST_APP_PACKAGE, packageName)
-                .putString(KEY_LAST_APP_LABEL, label).apply();
-        dashboard.setLastApp(packageName, label);
-    }
-
-    private void clearLastAppIfMatching(String packageName) {
-        if (!packageName.equals(preferences.getString(KEY_LAST_APP_PACKAGE, null))) return;
-        preferences.edit().remove(KEY_LAST_APP_PACKAGE).remove(KEY_LAST_APP_LABEL).apply();
-        dashboard.setLastApp(null, null);
-    }
-
-    private void refreshAppShortcuts() {
-        network.execute(() -> {
-            AppShortcutDiscovery.Result result = AppShortcutDiscovery.discover(
-                    getPackageManager(), getPackageName(), preferences);
-            handler.post(() -> {
-                if (foreground && !isFinishing()) {
-                    dashboard.setAppShortcuts(result.shortcuts);
-                    dashboard.setLastApp(result.lastPackage, result.lastLabel);
-                }
-            });
         });
     }
 
