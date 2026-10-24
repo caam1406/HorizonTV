@@ -29,8 +29,6 @@ final class OpenverseImageClient {
     private static final int MAX_IMAGE_BYTES = 5 * 1024 * 1024;
     private static final int MAX_IMAGE_DIMENSION = 12_000;
     private static final long MAX_IMAGE_PIXELS = 80_000_000L;
-    private static final int TARGET_WIDTH = 1920;
-    private static final int TARGET_HEIGHT = 1080;
     private static final int MAX_RESULTS = 20;
     private static final Set<String> ALLOWED_LICENSES;
 
@@ -41,6 +39,11 @@ final class OpenverseImageClient {
     }
 
     private final Random random = new Random();
+    private final DisplayResolution resolution;
+
+    OpenverseImageClient(DisplayResolution resolution) {
+        this.resolution = resolution;
+    }
 
     Wallpaper fetch(String query) throws IOException, JSONException {
         List<OpenverseImage> results = search(query);
@@ -178,7 +181,7 @@ final class OpenverseImageClient {
         }
     }
 
-    private static Bitmap decodeSampled(byte[] imageBytes) {
+    private Bitmap decodeSampled(byte[] imageBytes) {
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, bounds);
@@ -186,17 +189,9 @@ final class OpenverseImageClient {
                 || bounds.outWidth > MAX_IMAGE_DIMENSION || bounds.outHeight > MAX_IMAGE_DIMENSION
                 || (long) bounds.outWidth * bounds.outHeight > MAX_IMAGE_PIXELS) return null;
         BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight);
+        options.inSampleSize = resolution.sampleSizeFor(bounds.outWidth, bounds.outHeight);
         options.inPreferredConfig = Bitmap.Config.RGB_565;
         return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, options);
-    }
-
-    private static int sampleSize(int width, int height) {
-        int sample = 1;
-        while (width / (sample * 2) >= TARGET_WIDTH || height / (sample * 2) >= TARGET_HEIGHT) {
-            sample *= 2;
-        }
-        return sample;
     }
 
     static final class Wallpaper {

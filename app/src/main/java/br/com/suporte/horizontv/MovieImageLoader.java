@@ -16,7 +16,7 @@ final class MovieImageLoader {
 
     private MovieImageLoader() { }
 
-    static Bitmap fetch(String imageUrl) throws IOException {
+    static Bitmap fetch(String imageUrl, DisplayResolution resolution) throws IOException {
         if (!FilmSuggestionClient.isAllowedBackground(imageUrl)) return null;
         HttpURLConnection connection = (HttpURLConnection) new URL(imageUrl).openConnection();
         connection.setConnectTimeout(5000);
@@ -37,7 +37,10 @@ final class MovieImageLoader {
             if (bounds.outWidth < 1 || bounds.outHeight < 1 || bounds.outWidth > 8192
                     || bounds.outHeight > 8192 || (long) bounds.outWidth * bounds.outHeight > MAX_PIXELS) return null;
             BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight);
+            int targetWidth = resolution.designWidth(461, 1280);
+            int targetHeight = resolution.designHeight(197, 720);
+            options.inSampleSize = resolution.sampleSizeFor(
+                    bounds.outWidth, bounds.outHeight, targetWidth, targetHeight);
             options.inPreferredConfig = Bitmap.Config.RGB_565;
             return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
         } finally {
@@ -54,11 +57,5 @@ final class MovieImageLoader {
             output.write(buffer, 0, count);
         }
         return output.toByteArray();
-    }
-
-    private static int sampleSize(int width, int height) {
-        int sample = 1;
-        while (width / (sample * 2) >= 1280 || height / (sample * 2) >= 720) sample *= 2;
-        return sample;
     }
 }

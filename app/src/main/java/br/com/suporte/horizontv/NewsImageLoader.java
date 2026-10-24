@@ -13,12 +13,9 @@ final class NewsImageLoader {
     private static final int MAX_IMAGE_BYTES = 2 * 1024 * 1024;
     private static final int MAX_IMAGE_DIMENSION = 8192;
     private static final int MAX_IMAGE_PIXELS = 32_000_000;
-    private static final int TARGET_WIDTH = 600;
-    private static final int TARGET_HEIGHT = 340;
-
     private NewsImageLoader() { }
 
-    static Bitmap fetch(String imageUrl) throws IOException {
+    static Bitmap fetch(String imageUrl, DisplayResolution resolution) throws IOException {
         if (!NewsFeedReader.isAllowedImageUrl(imageUrl)) return null;
         HttpURLConnection connection = (HttpURLConnection) new URL(imageUrl).openConnection();
         connection.setConnectTimeout(5000);
@@ -37,7 +34,7 @@ final class NewsImageLoader {
             try (InputStream input = connection.getInputStream()) {
                 imageBytes = readLimited(input);
             }
-            return decodeSampled(imageBytes);
+            return decodeSampled(imageBytes, resolution);
         } finally {
             connection.disconnect();
         }
@@ -56,7 +53,7 @@ final class NewsImageLoader {
         return output.toByteArray();
     }
 
-    private static Bitmap decodeSampled(byte[] imageBytes) {
+    private static Bitmap decodeSampled(byte[] imageBytes, DisplayResolution resolution) {
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, bounds);
@@ -65,16 +62,11 @@ final class NewsImageLoader {
                 || (long) bounds.outWidth * bounds.outHeight > MAX_IMAGE_PIXELS) return null;
 
         BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight);
+        int targetWidth = resolution.designWidth(174, 1280);
+        int targetHeight = resolution.designHeight(300, 720);
+        options.inSampleSize = resolution.sampleSizeFor(
+                bounds.outWidth, bounds.outHeight, targetWidth, targetHeight);
         options.inPreferredConfig = Bitmap.Config.RGB_565;
         return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, options);
-    }
-
-    private static int sampleSize(int width, int height) {
-        int sample = 1;
-        while (width / (sample * 2) >= TARGET_WIDTH || height / (sample * 2) >= TARGET_HEIGHT) {
-            sample *= 2;
-        }
-        return sample;
     }
 }

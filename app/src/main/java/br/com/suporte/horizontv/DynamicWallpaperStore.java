@@ -28,10 +28,12 @@ final class DynamicWallpaperStore {
 
     private final File imageFile;
     private final SharedPreferences preferences;
+    private final DisplayResolution resolution;
 
     DynamicWallpaperStore(Context context, SharedPreferences preferences) {
         imageFile = new File(context.getFilesDir(), IMAGE_FILE);
         this.preferences = preferences;
+        resolution = DisplayResolution.from(context);
     }
 
     boolean isEnabled() {
@@ -77,7 +79,7 @@ final class DynamicWallpaperStore {
         BitmapFactory.decodeFile(imageFile.getAbsolutePath(), bounds);
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
         BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight);
+        options.inSampleSize = resolution.sampleSizeFor(bounds.outWidth, bounds.outHeight);
         options.inPreferredConfig = Bitmap.Config.RGB_565;
         return BitmapFactory.decodeFile(imageFile.getAbsolutePath(), options);
     }
@@ -107,11 +109,5 @@ final class DynamicWallpaperStore {
                 .putString(KEY_SOURCE_URL, metadata.sourceUrl)
                 .putString(KEY_ATTRIBUTION, metadata.attribution)
                 .apply();
-    }
-
-    private static int sampleSize(int width, int height) {
-        int sample = 1;
-        while (width / (sample * 2) >= 1920 || height / (sample * 2) >= 1080) sample *= 2;
-        return sample;
     }
 }

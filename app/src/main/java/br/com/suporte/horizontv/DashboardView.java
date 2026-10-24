@@ -13,14 +13,15 @@ import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.View;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 @SuppressLint("ViewConstructor")
-final class DashboardView extends View {
+final class DashboardView extends SurfaceView implements SurfaceHolder.Callback {
     interface Listener {
         void launchPackage(String packageName);
         void openNews(String url);
@@ -47,6 +48,7 @@ final class DashboardView extends View {
     private final DashboardNavigation navigation = new DashboardNavigation();
     private final AppShortcutDock appDock = new AppShortcutDock();
     private final Listener listener;
+    private final DisplayResolution resolution;
     private final ArrayList<RectF> hitAreas = new ArrayList<>();
     private List<Headline> headlines = new ArrayList<>();
     private final Bitmap[] trendingImages = new Bitmap[3];
@@ -66,15 +68,18 @@ final class DashboardView extends View {
     private int selectedNavigation = 0;
     private int tickerIndex;
     private long lastTickerChange;
+    private boolean surfaceAvailable;
+    private boolean renderScheduled;
 
     DashboardView(Context context, Listener listener) {
         super(context);
         this.listener = listener;
+        resolution = DisplayResolution.from(context);
         setFocusable(true);
         setFocusableInTouchMode(true);
         setContentDescription("Horizon TV, tela inicial");
         backdrop = new BackdropRenderer(context);
-        setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        getHolder().addCallback(this);
     }
 
     void setHeadlines(List<Headline> value, String message) {
@@ -136,11 +141,9 @@ final class DashboardView extends View {
         invalidate();
     }
 
-    @Override
-    protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
-        float scaleX = getWidth() / DESIGN_WIDTH;
-        float scaleY = getHeight() / DESIGN_HEIGHT;
+    private void drawDashboard(Canvas canvas) {
+        float scaleX = canvas.getWidth() / DESIGN_WIDTH;
+        float scaleY = canvas.getHeight() / DESIGN_HEIGHT;
         int save = canvas.save();
         canvas.scale(scaleX, scaleY);
         drawBackdrop(canvas);
@@ -153,6 +156,47 @@ final class DashboardView extends View {
         drawBottomCards(canvas, 394f, tickerTop - 16f);
         drawTicker(canvas, tickerTop);
         canvas.restoreToCount(save);
+    }
+
+    @Override
+    public void invalidate() {
+        super.invalidate();
+        if (!surfaceAvailable || renderScheduled) return;
+        renderScheduled = true;
+        post(() -> {
+            renderScheduled = false;
+            renderSurface();
+        });
+    }
+
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+        surfaceAvailable = true;
+        holder.setFixedSize(resolution.width, resolution.height);
+        renderSurface();
+    }
+
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        renderSurface();
+    }
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        surfaceAvailable = false;
+    }
+
+    private void renderSurface() {
+        if (!surfaceAvailable) return;
+        Canvas canvas = null;
+        try {
+            canvas = getHolder().lockHardwareCanvas();
+            drawDashboard(canvas);
+        } catch (IllegalStateException error) {
+            surfaceAvailable = false;
+        } finally {
+            if (canvas != null) getHolder().unlockCanvasAndPost(canvas);
+        }
     }
 
     @Override

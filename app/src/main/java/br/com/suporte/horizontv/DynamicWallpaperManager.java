@@ -17,7 +17,7 @@ final class DynamicWallpaperManager {
 
     private static final long REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000L;
     private final DynamicWallpaperStore store;
-    private final OpenverseImageClient client = new OpenverseImageClient();
+    private final OpenverseImageClient client;
     private final ExecutorService network;
     private final Handler handler;
     private final Listener listener;
@@ -25,8 +25,9 @@ final class DynamicWallpaperManager {
     private boolean refreshPending;
 
     DynamicWallpaperManager(DynamicWallpaperStore store, ExecutorService network,
-                            Handler handler, Listener listener) {
+                            Handler handler, Listener listener, DisplayResolution resolution) {
         this.store = store;
+        client = new OpenverseImageClient(resolution);
         this.network = network;
         this.handler = handler;
         this.listener = listener;

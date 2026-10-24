@@ -25,15 +25,18 @@ final class FilmSuggestionController {
     private final ExecutorService images;
     private final Handler handler;
     private final Listener listener;
+    private final DisplayResolution resolution;
     private long lastRequest;
 
     FilmSuggestionController(SharedPreferences preferences, ExecutorService network,
-                             ExecutorService images, Handler handler, Listener listener) {
+                             ExecutorService images, Handler handler, Listener listener,
+                             DisplayResolution resolution) {
         this.preferences = preferences;
         this.network = network;
         this.images = images;
         this.handler = handler;
         this.listener = listener;
+        this.resolution = resolution;
     }
 
     void refresh(boolean force) {
@@ -67,7 +70,7 @@ final class FilmSuggestionController {
 
     private Bitmap loadImageOrNull(String url) {
         try {
-            return MovieImageLoader.fetch(url);
+            return MovieImageLoader.fetch(url, resolution);
         } catch (IOException error) {
             Log.w("HorizonTV", "Movie image load failed: " + error.getClass().getSimpleName());
             return null;

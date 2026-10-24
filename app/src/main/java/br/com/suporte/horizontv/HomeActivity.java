@@ -60,6 +60,7 @@ public final class HomeActivity extends Activity {
     private long lastWeatherRequest;
     private boolean foreground;
     private DashboardView dashboard;
+    private DisplayResolution displayResolution;
     private SharedPreferences preferences;
     private BibleVerseRepository bibleVerses;
     private FilmSuggestionController movieSuggestions;
@@ -82,6 +83,7 @@ public final class HomeActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        displayResolution = DisplayResolution.from(this);
         preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
         preferences.edit().remove("selected_gmail_account").remove("gmail_notification_count").apply();
         bibleVerses = new BibleVerseRepository(preferences, network, handler);
@@ -109,7 +111,7 @@ public final class HomeActivity extends Activity {
                             dashboard.setFeaturedFilm(null, null, "Sem conexão com o catálogo");
                         }
                     }
-                });
+                }, displayResolution);
         wallpapers = new DynamicWallpaperManager(new DynamicWallpaperStore(this, preferences),
                 wallpaperNetwork, handler, new DynamicWallpaperManager.Listener() {
             @Override public void onWallpaperChanged(Bitmap image, OpenverseImage metadata) {
@@ -121,7 +123,7 @@ public final class HomeActivity extends Activity {
                     Toast.makeText(HomeActivity.this, message, Toast.LENGTH_SHORT).show();
                 }
             }
-        });
+        }, displayResolution);
         wallpapers.restore();
         dashboard.setLastApp(preferences.getString(KEY_LAST_APP_PACKAGE, null),
                 preferences.getString(KEY_LAST_APP_LABEL, null));
@@ -243,7 +245,7 @@ public final class HomeActivity extends Activity {
             if (headline.imageUrl.isEmpty() || !requestedNewsImages.add(headline.imageUrl)) continue;
             newsImages.execute(() -> {
                 try {
-                    Bitmap image = NewsImageLoader.fetch(headline.imageUrl);
+                    Bitmap image = NewsImageLoader.fetch(headline.imageUrl, displayResolution);
                     if (image == null) return;
                     handler.post(() -> {
                         if (!isFinishing() && !isDestroyed()) dashboard.setHeadlineImage(headline.url, image);
